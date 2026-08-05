@@ -5,8 +5,13 @@ layout(location = 1) in vec3 inColor;
 
 layout(location = 0) out vec3 fragColor;
 
+layout(set = 0, binding = 0) uniform uniform_buffer_object{
+    mat4 vp;
+    mat4 m;
+}ubo;
+
 void main()
 {
-    gl_Position = vec4(inPosition, 1.0);
+    gl_Position = ubo.vp * ubo.m *  vec4(inPosition, 1.0);
     fragColor = inColor;
 }

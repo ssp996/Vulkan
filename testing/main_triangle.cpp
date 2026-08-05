@@ -4,7 +4,8 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-#include "glm/glm.hpp"
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include "vulkan_utils_testing.hpp"
 
@@ -56,12 +57,17 @@ int main()
     
     VkPipelineLayout pipeline_layout;
     VkPipeline graphics_pipeline;
+    VkDescriptorSetLayout descriptor_set_layout;
+
+    create_descriptor_set_layout(device, descriptor_set_layout);
+
     create_graphics_pipeline(
         "shaders/test_vertex.spv",
         "shaders/test_fragment.spv",
         device,
         pipeline_layout,
-        render_pass, graphics_pipeline
+        render_pass, graphics_pipeline,
+        descriptor_set_layout
     );
 
     std::vector<VkFramebuffer> swap_chain_frame_buffers;
@@ -87,10 +93,10 @@ int main()
     create_sync_objects(device, image_available_semaphores, render_finished_semaphores, in_flight_fences, MAX_FRAMES_IN_FLIGHT);
     const std::vector<Vertex> vertices = {
     // Vertex 1: Top Center (Red)
-    Vertex{glm::vec3(0.0f, -0.5f, 0.5f), glm::vec3(1.0f, 0.0f, 0.0f)},
+    Vertex{glm::vec3(0.0f, -0.5f, 0.2f), glm::vec3(1.0f, 0.0f, 0.0f)},
     
     // Vertex 2: Bottom Right (Green)
-    Vertex{glm::vec3(0.5f,  0.5f, 0.5f), glm::vec3(0.0f, 1.0f, 0.0f)},
+    Vertex{glm::vec3(0.5f,  0.5f, 0.2f), glm::vec3(0.0f, 1.0f, 0.0f)},
     
     // Vertex 3: Bottom Left (Blue)
     Vertex{glm::vec3(-0.5f, 0.5f, 0.5f), glm::vec3(0.0f, 0.0f, 1.0f)}
@@ -104,11 +110,37 @@ int main()
     
     std::vector<VkBuffer> vertex_buffers = {vertex_buffer};
 
+    std::vector<VkBuffer> uniform_buffers;
+    std::vector<VkDeviceMemory> uniform_buffers_memory;
+    std::vector<void*> uniform_buffers_mapped;
+
+    create_uniform_buffer(device, physical_device, uniform_buffers, uniform_buffers_memory, uniform_buffers_mapped, MAX_FRAMES_IN_FLIGHT);
+
+    VkDescriptorPool descriptor_pool{};
+    create_descriptor_pool(device, descriptor_pool, MAX_FRAMES_IN_FLIGHT);
+
+    std::vector<VkDescriptorSet> descriptor_sets;   
+    create_descriptor_sets(device, descriptor_set_layout, descriptor_pool, descriptor_sets, uniform_buffers, MAX_FRAMES_IN_FLIGHT);
+
     uint32_t current_frame = 0;
 
     while(!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
+
+        float time = glfwGetTime();
+        
+        UniformBufferObject ubo{};
+
+        glm::mat4 model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 1.0f));
+        glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        glm::mat4 proj = glm::perspective(glm::radians(45.0f), (float)swap_chain_extent.width / (float)swap_chain_extent.height, 0.1f, 10.0f);
+        proj[1][1] *= -1;
+
+        ubo.m = model;
+        ubo.vp = proj * view;
+
+        memcpy(uniform_buffers_mapped[current_frame], &ubo, sizeof(ubo));
 
         draw_frame(
             current_frame,
@@ -125,7 +157,9 @@ int main()
             swap_chain,
             image_available_semaphores,
             render_finished_semaphores,
-            graphics_queue
+            graphics_queue,
+            descriptor_sets[current_frame],
+            pipeline_layout
         );
 
         current_frame = (current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
@@ -151,6 +185,10 @@ int main()
         window,
         vertex_buffer_memory,
         vertex_buffer,
+        uniform_buffers,
+        uniform_buffers_memory,
+        descriptor_pool,
+        descriptor_set_layout,
         MAX_FRAMES_IN_FLIGHT
     );
 
