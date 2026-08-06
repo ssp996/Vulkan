@@ -86,6 +86,8 @@ void createImageViews(std::vector<VkImageView>& swap_chain_image_views, std::vec
 
 void create_render_pass(VkFormat swap_chain_color_format, VkDevice device, VkRenderPass& render_pass);
 
+uint32_t find_memory_type(VkPhysicalDevice physical_device, uint32_t type_filter, VkMemoryPropertyFlags properties);
+
 void create_vertex_buffer(VkDevice device, VkPhysicalDevice physical_device, VkSurfaceKHR surface, std::vector<Vertex> vertices, VkBuffer& vertex_buffer, VkDeviceMemory& vertex_buffer_memory);
 
 void create_uniform_buffer(VkDevice device, VkPhysicalDevice physical_device, std::vector<VkBuffer>& uniform_buffers, std::vector<VkDeviceMemory>& uniform_buffers_memory, std::vector<void*>& uniform_buffers_mapped, int max_frames_in_flight);
@@ -104,10 +106,55 @@ void create_command_pool(VkPhysicalDevice physical_device, VkDevice device, VkSu
 
 void create_command_buffers(VkCommandPool command_pool, VkDevice device, std::vector<VkCommandBuffer>& command_buffers);
 
-void record_command_buffer(uint32_t image_index, VkCommandBuffer command_buffer, VkRenderPass render_pass, const std::vector<VkFramebuffer>& swap_chain_frame_buffers, VkExtent2D swap_chain_extent, VkPipeline graphics_pipeline, const std::vector<VkBuffer>& vertex_buffers, const std::vector<VkDeviceSize>& vertex_buffer_offsets, const std::vector<Vertex>& vertices, VkDescriptorSet& descriptor_set, VkPipelineLayout pipeline_layout);
+void record_command_buffer(uint32_t image_index, VkCommandBuffer command_buffer, VkRenderPass render_pass, const std::vector<VkFramebuffer>& swap_chain_frame_buffers, VkExtent2D swap_chain_extent, VkPipeline graphics_pipeline, const std::vector<VkBuffer>& vertex_buffers, const std::vector<VkDeviceSize>& vertex_buffer_offsets, const std::vector<Vertex>& vertices, const std::vector<uint16_t>& indices, VkBuffer index_buffer, VkDescriptorSet& descriptor_set, VkPipelineLayout pipeline_layout);
 
 void create_sync_objects(VkDevice device, std::vector<VkSemaphore>& image_available_semaphores, std::vector<VkSemaphore>& render_finished_semaphores, std::vector<VkFence>& in_flight_fences, int max_frames_in_flight);
 
-void draw_frame(uint32_t current_frame, VkDevice device, std::vector<VkFence>& in_flight_fences, std::vector<VkCommandBuffer>& command_buffers, VkRenderPass render_pass, const std::vector<VkFramebuffer>& swap_chain_frame_buffers, VkExtent2D swap_chain_extent, VkPipeline graphics_pipeline, const std::vector<VkBuffer>& vertex_buffers, const std::vector<VkDeviceSize>&  vertex_buffer_offsets, const std::vector<Vertex>& vertices, VkSwapchainKHR swap_chain, std::vector<VkSemaphore>& image_available_semaphores, std::vector<VkSemaphore>& render_finished_semaphores, VkQueue graphics_queue, VkDescriptorSet& descriptor_set, VkPipelineLayout pipeline_layout);
+void draw_frame(uint32_t current_frame, VkDevice device, std::vector<VkFence>& in_flight_fences, std::vector<VkCommandBuffer>& command_buffers, VkRenderPass render_pass, const std::vector<VkFramebuffer>& swap_chain_frame_buffers, VkExtent2D swap_chain_extent, VkPipeline graphics_pipeline, const std::vector<VkBuffer>& vertex_buffers, const std::vector<VkDeviceSize>&  vertex_buffer_offsets, const std::vector<Vertex>& vertices, VkSwapchainKHR swap_chain, std::vector<VkSemaphore>& image_available_semaphores, std::vector<VkSemaphore>& render_finished_semaphores, VkQueue graphics_queue, VkDescriptorSet& descriptor_set, VkPipelineLayout pipeline_layout, const std::vector<uint16_t>& indices, VkBuffer index_buffer);
 
-void cleanup(VkDevice device, std::vector<VkSemaphore> render_finished_semaphores, std::vector<VkSemaphore> image_available_semaphores, std::vector<VkFence> in_flight_fences, VkCommandPool command_pool, std::vector<VkFramebuffer> swap_chain_frame_buffers, VkPipeline graphics_pipeline, VkPipelineLayout pipeline_layout, VkRenderPass render_pass, std::vector<VkImageView> swap_chain_image_views, VkSwapchainKHR swap_chain, VkDebugUtilsMessengerEXT debug_messenger, VkSurfaceKHR surface, VkInstance instance, GLFWwindow* window, VkDeviceMemory vertex_buffer_memory, VkBuffer vertex_buffer, std::vector<VkBuffer> uniform_buffers, std::vector<VkDeviceMemory> uniform_buffers_memory, VkDescriptorPool descriptor_pool, VkDescriptorSetLayout descriptor_set_layout, int max_frames_in_flight);
+void cleanup(VkDevice device, std::vector<VkSemaphore> render_finished_semaphores, std::vector<VkSemaphore> image_available_semaphores, std::vector<VkFence> in_flight_fences, VkCommandPool command_pool, std::vector<VkFramebuffer> swap_chain_frame_buffers, VkPipeline graphics_pipeline, VkPipelineLayout pipeline_layout, VkRenderPass render_pass, std::vector<VkImageView> swap_chain_image_views, VkSwapchainKHR swap_chain, VkDebugUtilsMessengerEXT debug_messenger, VkSurfaceKHR surface, VkInstance instance, GLFWwindow* window, VkDeviceMemory vertex_buffer_memory, VkBuffer vertex_buffer, std::vector<VkBuffer> uniform_buffers, std::vector<VkDeviceMemory> uniform_buffers_memory, VkDescriptorPool descriptor_pool, VkDescriptorSetLayout descriptor_set_layout, VkDeviceMemory index_buffer_memory, VkBuffer index_buffer, int max_frames_in_flight);
+
+template <typename T>
+void create_buffer(VkDevice device, VkPhysicalDevice physical_device, const std::vector<T>& buffer_items, VkBuffer& buffer, VkDeviceMemory& buffer_memory, VkBufferUsageFlags buffer_usage, VkSharingMode sharing_mode)
+{
+    VkBufferCreateInfo buffer_create_info{};
+    buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    buffer_create_info.size = sizeof(T) * buffer_items.size();
+    buffer_create_info.usage = buffer_usage;
+    buffer_create_info.sharingMode = sharing_mode;
+
+    if (vkCreateBuffer(device, &buffer_create_info, nullptr, &buffer) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create buffer");
+    }
+
+    VkMemoryAllocateInfo memory_allocate_info{};
+    memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    
+    VkMemoryRequirements memory_requirements{};
+    vkGetBufferMemoryRequirements(device, buffer, &memory_requirements);
+    uint32_t memory_type_index = find_memory_type(physical_device, memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    memory_allocate_info.memoryTypeIndex = memory_type_index;
+    memory_allocate_info.allocationSize = memory_requirements.size;
+
+    if (vkAllocateMemory(device, &memory_allocate_info, nullptr, &buffer_memory) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to allocate memory");
+    }
+
+    if (vkBindBufferMemory(device, buffer, buffer_memory, 0) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to bind buffer");
+    }
+
+    void* data;
+
+    if (vkMapMemory(device, buffer_memory, 0, sizeof(T) * buffer_items.size(), 0, &data) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to map memory");
+    }
+
+    memcpy(data, buffer_items.data(), size_t(buffer_create_info.size));
+
+    vkUnmapMemory(device, buffer_memory);
+}
