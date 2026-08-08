@@ -608,11 +608,11 @@ void createImageViews(std::vector<VkImageView>& swap_chain_image_views, std::vec
 }
 
 //create render pass
-void create_render_pass(VkFormat swap_chain_color_format, VkDevice device, VkRenderPass& render_pass)
+void create_render_pass(VkFormat swap_chain_color_format, VkDevice device, VkRenderPass& render_pass, VkFormat depth_format, VkSampleCountFlagBits samples)
 {
     VkAttachmentDescription color_attachment{};
     color_attachment.format = swap_chain_color_format;
-    color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;\
+    color_attachment.samples = samples;
     //loadOp and storeOp are memory instructions which control what happens before (loadOp) the drawing and after (storeOp)
                                 //fresh background every frame
     color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -629,12 +629,29 @@ void create_render_pass(VkFormat swap_chain_color_format, VkDevice device, VkRen
     color_attachment_ref.attachment = 0;
     color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+    //attachment for depth info (for depth buffer)
+    VkAttachmentDescription depth_attachment{};
+    depth_attachment.format = depth_format;
+    depth_attachment.samples = samples;
+    depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; 
+    depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference depth_attachment_ref{};
+    //attachment is 1, and color attachment is 0
+    depth_attachment_ref.attachment = 1; 
+    depth_attachment_ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
     //subpass is what goes on within a render pass, one render pass may have one or more subpasses, here there's only one subpass
     //each subpass can have more than one attachment, however if there are actions which may cause read after write dependencies, then put them in separate subpasses which occur sequentially 
     VkSubpassDescription subpass{};
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &color_attachment_ref;
+    subpass.pDepthStencilAttachment = &depth_attachment_ref;
 
     //struct to control sequential order of subpasses (if neeeded)
     VkSubpassDependency dependency{};
@@ -648,10 +665,14 @@ void create_render_pass(VkFormat swap_chain_color_format, VkDevice device, VkRen
     dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
+    std::vector<VkAttachmentDescription> attachments = {color_attachment, depth_attachment};
+
+
+
     VkRenderPassCreateInfo render_pass_create_info{};
     render_pass_create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    render_pass_create_info.attachmentCount = 1;
-    render_pass_create_info.pAttachments = &color_attachment;
+    render_pass_create_info.attachmentCount = static_cast<uint32_t>(attachments.size());
+    render_pass_create_info.pAttachments = attachments.data();
     render_pass_create_info.subpassCount = 1;
     render_pass_create_info.pSubpasses = &subpass;
     render_pass_create_info.dependencyCount = 1;
@@ -936,6 +957,15 @@ void create_graphics_pipeline(const std::string vertex_shader_filepath, const st
     color_blending_create_info.blendConstants[2] = 0.0f;
     color_blending_create_info.blendConstants[3] = 0.0f;
 
+    VkPipelineDepthStencilStateCreateInfo depth_stencil{};
+    depth_stencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depth_stencil.depthTestEnable = VK_TRUE;           
+    depth_stencil.depthWriteEnable = VK_TRUE;          
+    depth_stencil.depthCompareOp = VK_COMPARE_OP_LESS; 
+    depth_stencil.depthBoundsTestEnable = VK_FALSE;
+    depth_stencil.stencilTestEnable = VK_FALSE;
+
+
     std::vector<VkDynamicState> dynamic_states = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
 
     VkPipelineDynamicStateCreateInfo dynamic_state{};
@@ -965,6 +995,7 @@ void create_graphics_pipeline(const std::string vertex_shader_filepath, const st
     pipeline_create_info.pRasterizationState = &rasterizer;
     pipeline_create_info.pMultisampleState = &multisampling;
     pipeline_create_info.pColorBlendState = &color_blending_create_info;
+    pipeline_create_info.pDepthStencilState = &depth_stencil;
     pipeline_create_info.pDynamicState = &dynamic_state;
     pipeline_create_info.layout = pipeline_layout;
     pipeline_create_info.renderPass = render_pass;
@@ -981,20 +1012,20 @@ void create_graphics_pipeline(const std::string vertex_shader_filepath, const st
 }
 
 
-void create_frame_buffers(std::vector<VkFramebuffer>& swap_chain_frame_buffers, std::vector<VkImageView> swap_chain_image_views, VkRenderPass render_pass, VkExtent2D swap_chain_extent, VkDevice device) 
+void create_frame_buffers(std::vector<VkFramebuffer>& swap_chain_frame_buffers, std::vector<VkImageView> swap_chain_image_views, VkRenderPass render_pass, VkExtent2D swap_chain_extent, VkDevice device, VkImageView depth_image_view) 
 {
     swap_chain_frame_buffers.resize(swap_chain_image_views.size());
 
     for (size_t i = 0; i < swap_chain_image_views.size(); i++)
     {
         
-        VkImageView attachments[] = {swap_chain_image_views[i]};
+        std::vector<VkImageView> attachments = {swap_chain_image_views[i], depth_image_view};
 
         VkFramebufferCreateInfo frame_buffer_create_info{};
         frame_buffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         frame_buffer_create_info.renderPass = render_pass;
-        frame_buffer_create_info.attachmentCount = 1;
-        frame_buffer_create_info.pAttachments = attachments;
+        frame_buffer_create_info.attachmentCount = static_cast<uint32_t>(attachments.size());
+        frame_buffer_create_info.pAttachments = attachments.data();
         frame_buffer_create_info.width = swap_chain_extent.width;
         frame_buffer_create_info.height = swap_chain_extent.height;
         frame_buffer_create_info.layers = 1;
@@ -1045,16 +1076,19 @@ void record_command_buffer(uint32_t image_index, VkCommandBuffer command_buffer,
         throw std::runtime_error("failed to begin command buffer");
     }
 
+    std::array<VkClearValue, 2> clear_values{};
+
+    clear_values[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+    clear_values[1].depthStencil = {1.0f, 0};
+
     VkRenderPassBeginInfo render_pass_begin_info{};
     render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    render_pass_begin_info.clearValueCount = static_cast<uint32_t>(clear_values.size());
+    render_pass_begin_info.pClearValues = clear_values.data();
     render_pass_begin_info.renderPass = render_pass;
     render_pass_begin_info.framebuffer = swap_chain_frame_buffers[image_index];
     render_pass_begin_info.renderArea.offset = {0, 0};
     render_pass_begin_info.renderArea.extent = swap_chain_extent;
-
-    VkClearValue clear_value_color = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
-    render_pass_begin_info.clearValueCount = 1;
-    render_pass_begin_info.pClearValues = &clear_value_color;
 
     vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -1161,7 +1195,7 @@ void draw_frame(uint32_t current_frame, VkDevice device, std::vector<VkFence>& i
     vkQueuePresentKHR(graphics_queue, &present_info);
 }
 
-void cleanup(VkDevice device, std::vector<VkSemaphore> render_finished_semaphores, std::vector<VkSemaphore> image_available_semaphores, std::vector<VkFence> in_flight_fences, VkCommandPool command_pool, std::vector<VkFramebuffer> swap_chain_frame_buffers, VkPipeline graphics_pipeline, VkPipelineLayout pipeline_layout, VkRenderPass render_pass, std::vector<VkImageView> swap_chain_image_views, VkSwapchainKHR swap_chain, VkDebugUtilsMessengerEXT debug_messenger, VkSurfaceKHR surface, VkInstance instance, GLFWwindow* window, VkDeviceMemory vertex_buffer_memory, VkBuffer vertex_buffer, std::vector<VkBuffer> uniform_buffers, std::vector<VkDeviceMemory> uniform_buffers_memory, VkDescriptorPool descriptor_pool, VkDescriptorSetLayout descriptor_set_layout, VkDeviceMemory index_buffer_memory, VkBuffer index_buffer, int max_frames_in_flight)
+void cleanup(VkDevice device, std::vector<VkSemaphore> render_finished_semaphores, std::vector<VkSemaphore> image_available_semaphores, std::vector<VkFence> in_flight_fences, VkCommandPool command_pool, std::vector<VkFramebuffer> swap_chain_frame_buffers, VkPipeline graphics_pipeline, VkPipelineLayout pipeline_layout, VkRenderPass render_pass, std::vector<VkImageView> swap_chain_image_views, VkSwapchainKHR swap_chain, VkDebugUtilsMessengerEXT debug_messenger, VkSurfaceKHR surface, VkInstance instance, GLFWwindow* window, VkDeviceMemory vertex_buffer_memory, VkBuffer vertex_buffer, std::vector<VkBuffer> uniform_buffers, std::vector<VkDeviceMemory> uniform_buffers_memory, VkDescriptorPool descriptor_pool, VkDescriptorSetLayout descriptor_set_layout, VkDeviceMemory index_buffer_memory, VkBuffer index_buffer, int max_frames_in_flight, VkImageView depth_image_view, VkImage depth_image, VkDeviceMemory depth_image_memory)
 {
     for (int i = 0; i < max_frames_in_flight; i++)
     {
@@ -1172,6 +1206,7 @@ void cleanup(VkDevice device, std::vector<VkSemaphore> render_finished_semaphore
         vkDestroyBuffer(device, uniform_buffers[i], nullptr);
         vkFreeMemory(device, uniform_buffers_memory[i], nullptr);
     }
+
 
     vkDestroyBuffer(device, index_buffer, nullptr);
     vkFreeMemory(device, index_buffer_memory, nullptr);
@@ -1191,6 +1226,10 @@ void cleanup(VkDevice device, std::vector<VkSemaphore> render_finished_semaphore
     vkDestroyPipeline(device, graphics_pipeline, nullptr);
     vkDestroyPipelineLayout(device, pipeline_layout, nullptr);
     vkDestroyRenderPass(device, render_pass, nullptr);
+
+    vkDestroyImageView(device, depth_image_view, nullptr);
+    vkDestroyImage(device, depth_image, nullptr);
+    vkFreeMemory(device, depth_image_memory, nullptr);
 
     for (auto imageView : swap_chain_image_views) {
         vkDestroyImageView(device, imageView, nullptr);
@@ -1213,3 +1252,75 @@ void cleanup(VkDevice device, std::vector<VkSemaphore> render_finished_semaphore
     glfwDestroyWindow(window);
 }
 
+VkFormat find_supported_format(VkPhysicalDevice physical_device, const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) 
+{
+    for (VkFormat format : candidates) 
+    {
+        VkFormatProperties props;
+        vkGetPhysicalDeviceFormatProperties(physical_device, format, &props);
+
+        if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features) return format;
+        else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features) return format;
+    }
+    throw std::runtime_error("failed to find supported format!");
+}
+
+VkFormat find_depth_format(VkPhysicalDevice physical_device) 
+{
+    return find_supported_format(
+        physical_device,
+        {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
+        VK_IMAGE_TILING_OPTIMAL,
+        VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+    );
+}
+
+void create_image(VkDevice device, VkPhysicalDevice physical_device, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& image_memory, VkSampleCountFlagBits samples, VkSharingMode sharing_mode) 
+{
+    VkImageCreateInfo image_info{};
+    image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    image_info.imageType = VK_IMAGE_TYPE_2D;
+    image_info.extent.width = width;
+    image_info.extent.height = height;
+    image_info.extent.depth = 1;
+    image_info.mipLevels = 1;
+    image_info.arrayLayers = 1;
+    image_info.format = format;
+    image_info.tiling = tiling;
+    image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    image_info.usage = usage;
+    image_info.samples = samples;
+    image_info.sharingMode = sharing_mode;
+
+    if (vkCreateImage(device, &image_info, nullptr, &image) != VK_SUCCESS) throw std::runtime_error("failed to create image");
+
+    VkMemoryRequirements mem_requirements;
+    vkGetImageMemoryRequirements(device, image, &mem_requirements);
+
+    VkMemoryAllocateInfo alloc_info{};
+    alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    alloc_info.allocationSize = mem_requirements.size;
+    alloc_info.memoryTypeIndex = find_memory_type(physical_device, mem_requirements.memoryTypeBits, properties);
+
+    if (vkAllocateMemory(device, &alloc_info, nullptr, &image_memory) != VK_SUCCESS) throw std::runtime_error("failed to allocate image memory");
+
+    vkBindImageMemory(device, image, image_memory, 0);
+}
+
+VkImageView create_image_view(VkDevice device, VkImage image, VkFormat format, VkImageAspectFlags aspect_flags) 
+{
+    VkImageViewCreateInfo view_info{};
+    view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    view_info.image = image;
+    view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    view_info.format = format;
+    view_info.subresourceRange.aspectMask = aspect_flags;
+    view_info.subresourceRange.baseMipLevel = 0;
+    view_info.subresourceRange.levelCount = 1;
+    view_info.subresourceRange.baseArrayLayer = 0;
+    view_info.subresourceRange.layerCount = 1;
+
+    VkImageView image_view;
+    if (vkCreateImageView(device, &view_info, nullptr, &image_view) != VK_SUCCESS) throw std::runtime_error("failed to create image view!");
+    return image_view;
+}
