@@ -973,12 +973,18 @@ void create_graphics_pipeline(const std::string vertex_shader_filepath, const st
     dynamic_state.dynamicStateCount = static_cast<uint32_t>(dynamic_states.size());
     dynamic_state.pDynamicStates = dynamic_states.data();
 
+    VkPushConstantRange push_constant{};
+    push_constant.offset = 0;
+    push_constant.size = sizeof(PushConstantData);
+    push_constant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
     //used to describe the data that you want to send to the gpu, like push constants (small) or descriptor (big but not very big)
     VkPipelineLayoutCreateInfo pipeline_layout_info{};
     pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipeline_layout_info.setLayoutCount = 1;
     pipeline_layout_info.pSetLayouts = &descriptor_set_layout;
-    pipeline_layout_info.pushConstantRangeCount = 0;
+    pipeline_layout_info.pushConstantRangeCount = 1;
+    pipeline_layout_info.pPushConstantRanges = &push_constant;
 
     if (vkCreatePipelineLayout(device, &pipeline_layout_info, nullptr, &pipeline_layout) != VK_SUCCESS)
     {
@@ -1066,7 +1072,7 @@ void create_command_buffers(VkCommandPool command_pool, VkDevice device, std::ve
     }
 }
 
-void record_command_buffer(uint32_t image_index, VkCommandBuffer command_buffer, VkRenderPass render_pass, const std::vector<VkFramebuffer>& swap_chain_frame_buffers, VkExtent2D swap_chain_extent, VkPipeline graphics_pipeline, const std::vector<VkBuffer>& vertex_buffers, const std::vector<VkDeviceSize>& vertex_buffer_offsets, const std::vector<Vertex>& vertices, const std::vector<uint16_t>& indices, VkBuffer index_buffer, VkDescriptorSet& descriptor_set, VkPipelineLayout pipeline_layout)
+void record_command_buffer(uint32_t image_index, VkCommandBuffer command_buffer, VkRenderPass render_pass, const std::vector<VkFramebuffer>& swap_chain_frame_buffers, VkExtent2D swap_chain_extent, VkPipeline graphics_pipeline, const std::vector<RenderObject>& render_objects, VkDescriptorSet& descriptor_set, VkPipelineLayout pipeline_layout)
 {
     VkCommandBufferBeginInfo command_buffer_begin_info{};
     command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -1107,15 +1113,19 @@ void record_command_buffer(uint32_t image_index, VkCommandBuffer command_buffer,
     scissor.extent = swap_chain_extent;
     vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 
-    vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers.data(), vertex_buffer_offsets.data());
-
-    vkCmdBindIndexBuffer(command_buffer, index_buffer, 0, VK_INDEX_TYPE_UINT16);
-
     vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
 
-    uint32_t vertex_count = static_cast<uint32_t>(vertices.size());
+    for (const auto& object: render_objects)
+    {
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(command_buffer, 0, 1, &object.vertex_buffer, offsets);
 
-    vkCmdDrawIndexed(command_buffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);  
+        vkCmdBindIndexBuffer(command_buffer, object.index_buffer, 0, VK_INDEX_TYPE_UINT16);
+
+        vkCmdPushConstants(command_buffer, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &object.push_constants);
+
+        vkCmdDrawIndexed(command_buffer, object.index_count, 1, 0, 0, 0);  
+    }
 
     vkCmdEndRenderPass(command_buffer);
 
@@ -1150,7 +1160,7 @@ void create_sync_objects(VkDevice device, std::vector<VkSemaphore>& image_availa
     }
 }
 
-void draw_frame(uint32_t current_frame, VkDevice device, std::vector<VkFence>& in_flight_fences, std::vector<VkCommandBuffer>& command_buffers, VkRenderPass render_pass, const std::vector<VkFramebuffer>& swap_chain_frame_buffers, VkExtent2D swap_chain_extent, VkPipeline graphics_pipeline, const std::vector<VkBuffer>& vertex_buffers, const std::vector<VkDeviceSize>&  vertex_buffer_offsets, const std::vector<Vertex>& vertices, VkSwapchainKHR swap_chain, std::vector<VkSemaphore>& image_available_semaphores, std::vector<VkSemaphore>& render_finished_semaphores, VkQueue graphics_queue, VkDescriptorSet& descriptor_set, VkPipelineLayout pipeline_layout, const std::vector<uint16_t>& indices, VkBuffer index_buffer)
+void draw_frame(uint32_t current_frame, VkDevice device, std::vector<VkFence>& in_flight_fences, std::vector<VkCommandBuffer>& command_buffers, VkRenderPass render_pass, const std::vector<VkFramebuffer>& swap_chain_frame_buffers, VkExtent2D swap_chain_extent, VkPipeline graphics_pipeline, const std::vector<RenderObject>& render_objects, VkSwapchainKHR swap_chain, std::vector<VkSemaphore>& image_available_semaphores, std::vector<VkSemaphore>& render_finished_semaphores, VkQueue graphics_queue, VkDescriptorSet& descriptor_set, VkPipelineLayout pipeline_layout)
 {
     vkWaitForFences(device, 1, &in_flight_fences[current_frame], VK_TRUE, UINT64_MAX);
     
@@ -1160,7 +1170,7 @@ void draw_frame(uint32_t current_frame, VkDevice device, std::vector<VkFence>& i
     vkResetFences(device, 1, &in_flight_fences[current_frame]);
 
     vkResetCommandBuffer(command_buffers[current_frame], 0);
-    record_command_buffer(image_index, command_buffers[current_frame], render_pass, swap_chain_frame_buffers, swap_chain_extent, graphics_pipeline, vertex_buffers, vertex_buffer_offsets, vertices, indices, index_buffer, descriptor_set, pipeline_layout);
+    record_command_buffer(image_index, command_buffers[current_frame], render_pass, swap_chain_frame_buffers, swap_chain_extent, graphics_pipeline, render_objects, descriptor_set, pipeline_layout);
 
     VkSubmitInfo submit_info{};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1195,7 +1205,7 @@ void draw_frame(uint32_t current_frame, VkDevice device, std::vector<VkFence>& i
     vkQueuePresentKHR(graphics_queue, &present_info);
 }
 
-void cleanup(VkDevice device, std::vector<VkSemaphore> render_finished_semaphores, std::vector<VkSemaphore> image_available_semaphores, std::vector<VkFence> in_flight_fences, VkCommandPool command_pool, std::vector<VkFramebuffer> swap_chain_frame_buffers, VkPipeline graphics_pipeline, VkPipelineLayout pipeline_layout, VkRenderPass render_pass, std::vector<VkImageView> swap_chain_image_views, VkSwapchainKHR swap_chain, VkDebugUtilsMessengerEXT debug_messenger, VkSurfaceKHR surface, VkInstance instance, GLFWwindow* window, VkDeviceMemory vertex_buffer_memory, VkBuffer vertex_buffer, std::vector<VkBuffer> uniform_buffers, std::vector<VkDeviceMemory> uniform_buffers_memory, VkDescriptorPool descriptor_pool, VkDescriptorSetLayout descriptor_set_layout, VkDeviceMemory index_buffer_memory, VkBuffer index_buffer, int max_frames_in_flight, VkImageView depth_image_view, VkImage depth_image, VkDeviceMemory depth_image_memory)
+void cleanup(VkDevice device, std::vector<VkSemaphore> render_finished_semaphores, std::vector<VkSemaphore> image_available_semaphores, std::vector<VkFence> in_flight_fences, VkCommandPool command_pool, std::vector<VkFramebuffer> swap_chain_frame_buffers, VkPipeline graphics_pipeline, VkPipelineLayout pipeline_layout, VkRenderPass render_pass, std::vector<VkImageView> swap_chain_image_views, VkSwapchainKHR swap_chain, VkDebugUtilsMessengerEXT debug_messenger, VkSurfaceKHR surface, VkInstance instance, GLFWwindow* window, std::vector<VkBuffer> uniform_buffers, std::vector<VkDeviceMemory> uniform_buffers_memory, VkDescriptorPool descriptor_pool, VkDescriptorSetLayout descriptor_set_layout, int max_frames_in_flight, VkImageView depth_image_view, VkImage depth_image, VkDeviceMemory depth_image_memory, std::vector<RenderObject> render_objects)
 {
     for (int i = 0; i < max_frames_in_flight; i++)
     {
@@ -1207,9 +1217,7 @@ void cleanup(VkDevice device, std::vector<VkSemaphore> render_finished_semaphore
         vkFreeMemory(device, uniform_buffers_memory[i], nullptr);
     }
 
-
-    vkDestroyBuffer(device, index_buffer, nullptr);
-    vkFreeMemory(device, index_buffer_memory, nullptr);
+    
 
     vkDestroyDescriptorPool(device, descriptor_pool, nullptr);
 
@@ -1237,8 +1245,14 @@ void cleanup(VkDevice device, std::vector<VkSemaphore> render_finished_semaphore
 
     vkDestroySwapchainKHR(device, swap_chain, nullptr);
 
-    vkDestroyBuffer(device, vertex_buffer, nullptr);
-    vkFreeMemory(device, vertex_buffer_memory, nullptr);
+    for (auto object: render_objects)
+    {
+        vkDestroyBuffer(device, object.index_buffer, nullptr);
+        vkFreeMemory(device, object.index_buffer_memory, nullptr);
+        
+        vkDestroyBuffer(device, object.vertex_buffer, nullptr);
+        vkFreeMemory(device, object.vertex_buffer_memory, nullptr);
+    }
 
     vkDestroyDevice(device, nullptr);
 

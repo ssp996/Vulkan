@@ -102,21 +102,21 @@ int main()
     std::vector<VkFence> in_flight_fences;
     create_sync_objects(device, image_available_semaphores, render_finished_semaphores, in_flight_fences, MAX_FRAMES_IN_FLIGHT);
     const std::vector<Vertex> vertices = {
-    Vertex{glm::vec3(-0.2f, -0.2f, -0.2), glm::vec3(1.0f, 0.0f, 0.0f)},
+    Vertex{glm::vec3(-0.2f, -0.2f, -0.2), glm::vec3(0.0f, 1.0f, 0.0f)},
     
-    Vertex{glm::vec3(0.2f,  -0.2f, -0.2f), glm::vec3(1.0f, 0.0f, 0.0f)},
+    Vertex{glm::vec3(0.2f,  -0.2f, -0.2f), glm::vec3(0.0f, 1.0f, 0.0f)},
     
-    Vertex{glm::vec3(0.2f, 0.2f, -0.2f), glm::vec3(1.0f, 0.0f, 0.0f)},
+    Vertex{glm::vec3(0.2f, 0.2f, -0.2f), glm::vec3(0.0f, 1.0f, 0.0f)},
 
-    Vertex{glm::vec3(-0.2f, 0.2f, -0.2f), glm::vec3(1.0f, 0.0f, 0.0f)},
+    Vertex{glm::vec3(-0.2f, 0.2f, -0.2f), glm::vec3(0.0f, 1.0f, 0.0f)},
     
-    Vertex{glm::vec3(-0.2f,  -0.2f, 0.2), glm::vec3(0.0f, 0.0f, 1.0f)},
+    Vertex{glm::vec3(-0.2f,  -0.2f, 0.2), glm::vec3(0.502, 0.0, 0.502)},
 
-    Vertex{glm::vec3(0.2f, -0.2f, 0.2f), glm::vec3(0.0f, 0.0f, 1.0f)},
+    Vertex{glm::vec3(0.2f, -0.2f, 0.2f), glm::vec3(0.502, 0.0, 0.502)},
 
-    Vertex{glm::vec3(0.2f,  0.2f, 0.2f), glm::vec3(0.0f, 0.0f, 1.0f)},
+    Vertex{glm::vec3(0.2f,  0.2f, 0.2f), glm::vec3(0.502, 0.0, 0.502)},
     
-    Vertex{glm::vec3(-0.2f, 0.2f, 0.2f), glm::vec3(0.0f, 0.0f, 1.0f)}
+    Vertex{glm::vec3(-0.2f, 0.2f, 0.2f), glm::vec3(0.502, 0.0, 0.502)}
 
     };
 
@@ -135,13 +135,23 @@ int main()
         4, 5, 1, 1, 0, 4
     };
 
+
+   std::vector<Vertex> floor_vertices = {
+        Vertex{glm::vec3(-1.0f, -1.0f, -1.0f), glm::vec3(0.3f, 0.3f, 0.3f)}, // 0: Top-Left
+        Vertex{glm::vec3(1.0f, -1.0f, -1.0f), glm::vec3(0.3f, 0.3f, 0.3f)},  // 1: Top-Right
+        Vertex{glm::vec3(1.0f, 1.0f, -1.0f), glm::vec3(0.3f, 0.3f, 0.3f)},   // 2: Bottom-Right (Swapped!)
+        Vertex{glm::vec3(-1.0f, 1.0f, -1.0f), glm::vec3(0.3f, 0.3f, 0.3f)}   // 3: Bottom-Left  (Swapped!)
+    };
+
+    std::vector<uint16_t> floor_indices = {
+        0, 1, 2, 2, 3, 0
+    };
+
     std::vector<VkDeviceSize> vertex_buffer_offsets = {0};
 
     VkBuffer vertex_buffer;
     VkDeviceMemory vertex_buffer_memory;
     create_vertex_buffer(device, physical_device, surface, vertices, vertex_buffer, vertex_buffer_memory);
-    
-    std::vector<VkBuffer> vertex_buffers = {vertex_buffer};
 
     VkBuffer index_buffer;
     VkDeviceMemory index_buffer_memory;
@@ -161,6 +171,39 @@ int main()
 
     uint32_t current_frame = 0;
 
+    PushConstantData cube_push_constants{};
+    cube_push_constants.color = glm::vec3(1.0f, 1.0f, 1.0f);
+    cube_push_constants.model = glm::mat4(1.0f);
+
+    RenderObject cube{};
+    cube.vertex_buffer = vertex_buffer;
+    cube.index_buffer = index_buffer;
+    cube.index_count = static_cast<uint32_t>(indices.size());
+    cube.push_constants = cube_push_constants;
+
+    VkBuffer floor_buffer;
+    VkDeviceMemory floor_memory;
+    //create_vertex_buffer and create_buffer call vkAllocateMemory for which there is a hard limit, so in the future switch to Vulkan Memory Allocator or do it yourself
+    create_vertex_buffer(device, physical_device, surface, floor_vertices, floor_buffer, floor_memory);
+
+    VkBuffer floor_index_buffer;
+    VkDeviceMemory floor_index_memory;
+    create_buffer<uint16_t>(device, physical_device, floor_indices, floor_index_buffer, floor_index_memory, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_SHARING_MODE_EXCLUSIVE);
+
+
+    PushConstantData floor_push_constants{};    
+    floor_push_constants.color = glm::vec3(1.0f, 1.0f, 1.0f);
+    floor_push_constants.model = glm::mat4(1.0f);
+
+
+    RenderObject floor{};
+    floor.vertex_buffer = floor_buffer;
+    floor.index_buffer = floor_index_buffer;
+    floor.index_count = static_cast<uint32_t>(floor_indices.size());
+    floor.push_constants = floor_push_constants;
+
+
+    std::vector<RenderObject> render_objects = {cube, floor};
     while(!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
@@ -169,13 +212,24 @@ int main()
         
         UniformBufferObject ubo{};
 
-        glm::mat4 model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        model = glm::rotate(model, glm::radians(30.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-        glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        glm::mat4 cube_model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        cube_model = glm::rotate(cube_model, glm::radians(30.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        render_objects[0].push_constants.model = cube_model;
+
+        glm::mat4 floor_model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 2.0f - time/2.0f));
+        render_objects[1].push_constants.model = floor_model;
+
+
+        /* glm::vec3 camera_pos = glm::vec3(0.0f, 5.0f, 0.0f);
+        glm::vec3 camera_lookat = glm::vec3(0.0f, 0.0f, 0.0f);
+        glm::vec3 camera_up = glm::vec3(0.0f, 1.0f, 0.0f);
+
+        glm::vec3 right = glm::normalize(glm::cross(camera_lookat, camera_up)); */
+
+        glm::mat4 view = glm::lookAt(glm::vec3(2.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+
         glm::mat4 proj = glm::perspective(glm::radians(45.0f), (float)swap_chain_extent.width / (float)swap_chain_extent.height, 0.1f, 10.0f);
         proj[1][1] *= -1;
-
-        ubo.m = model;
         ubo.vp = proj * view;
 
         memcpy(uniform_buffers_mapped[current_frame], &ubo, sizeof(ubo));
@@ -189,17 +243,13 @@ int main()
             swap_chain_frame_buffers,
             swap_chain_extent,
             graphics_pipeline,
-            vertex_buffers,
-            vertex_buffer_offsets,
-            vertices,
+            render_objects,
             swap_chain,
             image_available_semaphores,
             render_finished_semaphores,
             graphics_queue,
             descriptor_sets[current_frame],
-            pipeline_layout,
-            indices, 
-            index_buffer
+            pipeline_layout
         );
 
         current_frame = (current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
@@ -223,18 +273,15 @@ int main()
         surface,
         instance,
         window,
-        vertex_buffer_memory,
-        vertex_buffer,
         uniform_buffers,
         uniform_buffers_memory,
         descriptor_pool,
         descriptor_set_layout,
-        index_buffer_memory,
-        index_buffer,
         MAX_FRAMES_IN_FLIGHT,
         depth_image_view,
         depth_image,
-        depth_image_memory
+        depth_image_memory,
+        render_objects
     );
 
     glfwTerminate();

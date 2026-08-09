@@ -7,11 +7,15 @@ layout(location = 0) out vec3 fragColor;
 
 layout(set = 0, binding = 0) uniform uniform_buffer_object{
     mat4 vp;
-    mat4 m;
 }ubo;
+
+layout(push_constant) uniform PushConstants{
+    mat4 model;
+    vec3 color;
+}pc;
 
 void main()
 {
-    gl_Position = ubo.vp * ubo.m *  vec4(inPosition, 1.0);
-    fragColor = inColor;
+    gl_Position = ubo.vp * pc.model *  vec4(inPosition, 1.0);
+    fragColor = inColor * pc.color;
 }
