@@ -924,7 +924,7 @@ void create_graphics_pipeline(const std::string vertex_shader_filepath, const st
     VkPipelineInputAssemblyStateCreateInfo input_assembly{};
     input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
     //topology
-    input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+    input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     input_assembly.primitiveRestartEnable = VK_FALSE;
 
     VkPipelineViewportStateCreateInfo viewport_state{};
@@ -1024,14 +1024,14 @@ void create_graphics_pipeline(const std::string vertex_shader_filepath, const st
 }
 
 
-void create_frame_buffers(std::vector<VkFramebuffer>& swap_chain_frame_buffers, std::vector<VkImageView> swap_chain_image_views, VkRenderPass render_pass, VkExtent2D swap_chain_extent, VkDevice device, VkImageView depth_image_view) 
+void create_frame_buffers(std::vector<VkFramebuffer>& swap_chain_frame_buffers, std::vector<VkImageView> swap_chain_image_views, VkRenderPass render_pass, VkExtent2D swap_chain_extent, VkDevice device, const std::vector<VkImageView>& depth_image_views) 
 {
     swap_chain_frame_buffers.resize(swap_chain_image_views.size());
 
     for (size_t i = 0; i < swap_chain_image_views.size(); i++)
     {
         
-        std::vector<VkImageView> attachments = {swap_chain_image_views[i], depth_image_view};
+        std::vector<VkImageView> attachments = {swap_chain_image_views[i], depth_image_views[i]};
 
         VkFramebufferCreateInfo frame_buffer_create_info{};
         frame_buffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -1211,7 +1211,7 @@ void draw_frame(uint32_t current_frame, VkDevice device, std::vector<VkFence>& i
     vkQueuePresentKHR(graphics_queue, &present_info);
 }
 
-void cleanup(VkDevice device, std::vector<VkSemaphore> render_finished_semaphores, std::vector<VkSemaphore> image_available_semaphores, std::vector<VkFence> in_flight_fences, VkCommandPool command_pool, std::vector<VkFramebuffer> swap_chain_frame_buffers, VkPipeline graphics_pipeline, VkPipelineLayout pipeline_layout, VkRenderPass render_pass, std::vector<VkImageView> swap_chain_image_views, VkSwapchainKHR swap_chain, VkDebugUtilsMessengerEXT debug_messenger, VkSurfaceKHR surface, VkInstance instance, GLFWwindow* window, std::vector<VkBuffer> uniform_buffers, std::vector<VkDeviceMemory> uniform_buffers_memory, VkDescriptorPool descriptor_pool, VkDescriptorSetLayout descriptor_set_layout, int max_frames_in_flight, VkImageView depth_image_view, VkImage depth_image, VkDeviceMemory depth_image_memory, std::vector<RenderObject> render_objects)
+void cleanup(VkDevice device, std::vector<VkSemaphore> render_finished_semaphores, std::vector<VkSemaphore> image_available_semaphores, std::vector<VkFence> in_flight_fences, VkCommandPool command_pool, std::vector<VkFramebuffer> swap_chain_frame_buffers, VkPipeline graphics_pipeline, VkPipelineLayout pipeline_layout, VkRenderPass render_pass, std::vector<VkImageView> swap_chain_image_views, VkSwapchainKHR swap_chain, VkDebugUtilsMessengerEXT debug_messenger, VkSurfaceKHR surface, VkInstance instance, GLFWwindow* window, std::vector<VkBuffer> uniform_buffers, std::vector<VkDeviceMemory> uniform_buffers_memory, VkDescriptorPool descriptor_pool, VkDescriptorSetLayout descriptor_set_layout, int max_frames_in_flight, std::vector<VkImageView> depth_image_views, std::vector<VkImage> depth_images, std::vector<VkDeviceMemory> depth_image_memories, std::vector<RenderObject> render_objects)
 {
     for (int i = 0; i < max_frames_in_flight; i++)
     {
@@ -1241,10 +1241,13 @@ void cleanup(VkDevice device, std::vector<VkSemaphore> render_finished_semaphore
     vkDestroyPipelineLayout(device, pipeline_layout, nullptr);
     vkDestroyRenderPass(device, render_pass, nullptr);
 
-    vkDestroyImageView(device, depth_image_view, nullptr);
-    vkDestroyImage(device, depth_image, nullptr);
-    vkFreeMemory(device, depth_image_memory, nullptr);
-
+    for (size_t i = 0; i < swap_chain_image_views.size(); i++)
+    {
+        vkDestroyImageView(device, depth_image_views[i], nullptr);
+        vkDestroyImage(device, depth_images[i], nullptr);
+        vkFreeMemory(device, depth_image_memories[i], nullptr);
+    }
+    
     for (auto imageView : swap_chain_image_views) {
         vkDestroyImageView(device, imageView, nullptr);
     }

@@ -72,13 +72,16 @@ int main()
         descriptor_set_layout
     );
 
-    VkImage depth_image;
-    VkDeviceMemory depth_image_memory;
-    VkImageView depth_image_view;
+    std::vector<VkImage> depth_images(swap_chain_images.size());
+    std::vector<VkDeviceMemory> depth_image_memories(swap_chain_images.size());
+    std::vector<VkImageView> depth_image_views(swap_chain_images.size());
 
-    create_image(device, physical_device, swap_chain_extent.width, swap_chain_extent.height, depth_format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depth_image, depth_image_memory, VK_SAMPLE_COUNT_1_BIT, VK_SHARING_MODE_EXCLUSIVE);
-    depth_image_view = create_image_view(device, depth_image, depth_format, VK_IMAGE_ASPECT_DEPTH_BIT);
-
+    for (size_t i = 0; i < swap_chain_images.size(); i++)
+    {
+        create_image(device, physical_device, swap_chain_extent.width, swap_chain_extent.height, depth_format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depth_images[i], depth_image_memories[i], VK_SAMPLE_COUNT_1_BIT, VK_SHARING_MODE_EXCLUSIVE);
+        depth_image_views[i] = create_image_view(device, depth_images[i], depth_format, VK_IMAGE_ASPECT_DEPTH_BIT);
+    }
+    
     std::vector<VkFramebuffer> swap_chain_frame_buffers;
     VkFramebuffer frame_buffer;
     create_frame_buffers(
@@ -87,7 +90,7 @@ int main()
         render_pass,
         swap_chain_extent,
         device,
-        depth_image_view
+        depth_image_views
     );
 
     VkCommandPool command_pool;
@@ -230,7 +233,7 @@ int main()
         
         UniformBufferObject ubo{};
 
-        glm::mat4 cube_model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        glm::mat4 cube_model = glm::rotate(glm::mat4(1.0f), time/5 * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         cube_model = glm::rotate(cube_model, glm::radians(30.0f), glm::vec3(1.0f, 0.0f, 0.0f));
         render_objects[0].push_constants.model = cube_model;
 
@@ -240,7 +243,7 @@ int main()
 
         glm::vec3 right = glm::normalize(glm::cross(camera_lookat, camera_up)); */
 
-        glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 1.5f, 4.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 1.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
         glm::mat4 proj = glm::perspective(glm::radians(45.0f), (float)swap_chain_extent.width / (float)swap_chain_extent.height, 0.1f, 10.0f);
         proj[1][1] *= -1;
@@ -293,9 +296,9 @@ int main()
         descriptor_pool,
         descriptor_set_layout,
         MAX_FRAMES_IN_FLIGHT,
-        depth_image_view,
-        depth_image,
-        depth_image_memory,
+        depth_image_views,
+        depth_images,
+        depth_image_memories,
         render_objects
     );
 
