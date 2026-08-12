@@ -101,50 +101,68 @@ int main()
     std::vector<VkSemaphore> render_finished_semaphores;
     std::vector<VkFence> in_flight_fences;
     create_sync_objects(device, image_available_semaphores, render_finished_semaphores, in_flight_fences, MAX_FRAMES_IN_FLIGHT);
+
+
     const std::vector<Vertex> vertices = {
-    Vertex{glm::vec3(-0.2f, -0.2f, -0.2), glm::vec3(0.0f, 1.0f, 0.0f)},
-    
-    Vertex{glm::vec3(0.2f,  -0.2f, -0.2f), glm::vec3(0.0f, 1.0f, 0.0f)},
-    
-    Vertex{glm::vec3(0.2f, 0.2f, -0.2f), glm::vec3(0.0f, 1.0f, 0.0f)},
+        // FRONT FACE (Red) - Normal points towards -Z
+        Vertex{glm::vec3(-0.2f, -0.2f, -0.2f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f)},
+        Vertex{glm::vec3( 0.2f, -0.2f, -0.2f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f)},
+        Vertex{glm::vec3( 0.2f,  0.2f, -0.2f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f)},
+        Vertex{glm::vec3(-0.2f,  0.2f, -0.2f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f)},
 
-    Vertex{glm::vec3(-0.2f, 0.2f, -0.2f), glm::vec3(0.0f, 1.0f, 0.0f)},
-    
-    Vertex{glm::vec3(-0.2f,  -0.2f, 0.2), glm::vec3(0.502, 0.0, 0.502)},
+        // BACK FACE (Blue) - Normal points towards +Z
+        Vertex{glm::vec3(-0.2f, -0.2f,  0.2f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)},
+        Vertex{glm::vec3( 0.2f, -0.2f,  0.2f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)},
+        Vertex{glm::vec3( 0.2f,  0.2f,  0.2f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)},
+        Vertex{glm::vec3(-0.2f,  0.2f,  0.2f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)},
 
-    Vertex{glm::vec3(0.2f, -0.2f, 0.2f), glm::vec3(0.502, 0.0, 0.502)},
+        // LEFT FACE (Green) - Normal points towards -X
+        Vertex{glm::vec3(-0.2f, -0.2f, -0.2f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(-1.0f, 0.0f, 0.0f)},
+        Vertex{glm::vec3(-0.2f, -0.2f,  0.2f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(-1.0f, 0.0f, 0.0f)},
+        Vertex{glm::vec3(-0.2f,  0.2f,  0.2f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(-1.0f, 0.0f, 0.0f)},
+        Vertex{glm::vec3(-0.2f,  0.2f, -0.2f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(-1.0f, 0.0f, 0.0f)},
 
-    Vertex{glm::vec3(0.2f,  0.2f, 0.2f), glm::vec3(0.502, 0.0, 0.502)},
-    
-    Vertex{glm::vec3(-0.2f, 0.2f, 0.2f), glm::vec3(0.502, 0.0, 0.502)}
+        // RIGHT FACE (Yellow) - Normal points towards +X
+        Vertex{glm::vec3( 0.2f, -0.2f, -0.2f), glm::vec3(1.0f, 1.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f)},
+        Vertex{glm::vec3( 0.2f, -0.2f,  0.2f), glm::vec3(1.0f, 1.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f)},
+        Vertex{glm::vec3( 0.2f,  0.2f,  0.2f), glm::vec3(1.0f, 1.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f)},
+        Vertex{glm::vec3( 0.2f,  0.2f, -0.2f), glm::vec3(1.0f, 1.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f)},
 
+        // TOP FACE (Magenta) - Normal points towards -Y
+        Vertex{glm::vec3(-0.2f, -0.2f, -0.2f), glm::vec3(1.0f, 0.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f)},
+        Vertex{glm::vec3( 0.2f, -0.2f, -0.2f), glm::vec3(1.0f, 0.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f)},
+        Vertex{glm::vec3( 0.2f, -0.2f,  0.2f), glm::vec3(1.0f, 0.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f)},
+        Vertex{glm::vec3(-0.2f, -0.2f,  0.2f), glm::vec3(1.0f, 0.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f)},
+
+        // BOTTOM FACE (Cyan) - Normal points towards +Y
+        Vertex{glm::vec3(-0.2f,  0.2f, -0.2f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)},
+        Vertex{glm::vec3( 0.2f,  0.2f, -0.2f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)},
+        Vertex{glm::vec3( 0.2f,  0.2f,  0.2f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)},
+        Vertex{glm::vec3(-0.2f,  0.2f,  0.2f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)}
     };
 
     const std::vector<uint16_t> indices = {
-        // Front face
-        0, 1, 2, 2, 3, 0,
-        // Back face
-        4, 7, 6, 6, 5, 4,
-        // Left face
-        4, 0, 3, 3, 7, 4,
-        // Right face
-        1, 5, 6, 6, 2, 1,
-        // Top face
-        3, 2, 6, 6, 7, 3,
-        // Bottom face
-        4, 5, 1, 1, 0, 4
+        0, 1, 2, 2, 3, 0,       // Front
+        4, 5, 6, 6, 7, 4,       // Back
+        8, 9, 10, 10, 11, 8,    // Left
+        12, 13, 14, 14, 15, 12, // Right
+        16, 17, 18, 18, 19, 16, // Top
+        20, 21, 22, 22, 23, 20  // Bottom
     };
 
-
    std::vector<Vertex> floor_vertices = {
-        Vertex{glm::vec3(-1.0f, -1.0f, -1.0f), glm::vec3(0.3f, 0.3f, 0.3f)}, // 0: Top-Left
-        Vertex{glm::vec3(1.0f, -1.0f, -1.0f), glm::vec3(0.3f, 0.3f, 0.3f)},  // 1: Top-Right
-        Vertex{glm::vec3(1.0f, 1.0f, -1.0f), glm::vec3(0.3f, 0.3f, 0.3f)},   // 2: Bottom-Right (Swapped!)
-        Vertex{glm::vec3(-1.0f, 1.0f, -1.0f), glm::vec3(0.3f, 0.3f, 0.3f)}   // 3: Bottom-Left  (Swapped!)
+        // 0: Top-Left
+        Vertex{glm::vec3(-1.0f, -1.0f, -1.0f), glm::vec3(0.3f, 0.3f, 0.3f), glm::vec3(0.0f, 1.0f, 0.0f)},
+        // 1: Top-Right
+        Vertex{glm::vec3( 1.0f, -1.0f, -1.0f), glm::vec3(0.3f, 0.3f, 0.3f), glm::vec3(0.0f, 1.0f, 0.0f)},
+        // 2: Bottom-Right
+        Vertex{glm::vec3( 1.0f, -1.0f,  1.0f), glm::vec3(0.3f, 0.3f, 0.3f), glm::vec3(0.0f, 1.0f, 0.0f)},
+        // 3: Bottom-Left
+        Vertex{glm::vec3(-1.0f, -1.0f,  1.0f), glm::vec3(0.3f, 0.3f, 0.3f), glm::vec3(0.0f, 1.0f, 0.0f)}
     };
 
     std::vector<uint16_t> floor_indices = {
-        0, 1, 2, 2, 3, 0
+        0, 1, 2, 2, 3, 0 // Two counter-clockwise triangles
     };
 
     std::vector<VkDeviceSize> vertex_buffer_offsets = {0};
@@ -216,21 +234,18 @@ int main()
         cube_model = glm::rotate(cube_model, glm::radians(30.0f), glm::vec3(1.0f, 0.0f, 0.0f));
         render_objects[0].push_constants.model = cube_model;
 
-        glm::mat4 floor_model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 2.0f - time/2.0f));
-        render_objects[1].push_constants.model = floor_model;
-
-
         /* glm::vec3 camera_pos = glm::vec3(0.0f, 5.0f, 0.0f);
         glm::vec3 camera_lookat = glm::vec3(0.0f, 0.0f, 0.0f);
         glm::vec3 camera_up = glm::vec3(0.0f, 1.0f, 0.0f);
 
         glm::vec3 right = glm::normalize(glm::cross(camera_lookat, camera_up)); */
 
-        glm::mat4 view = glm::lookAt(glm::vec3(2.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 1.5f, 4.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
         glm::mat4 proj = glm::perspective(glm::radians(45.0f), (float)swap_chain_extent.width / (float)swap_chain_extent.height, 0.1f, 10.0f);
         proj[1][1] *= -1;
         ubo.vp = proj * view;
+        ubo.light_dir = glm::vec3(0.0f, -1.0f, 1.0f);
 
         memcpy(uniform_buffers_mapped[current_frame], &ubo, sizeof(ubo));
 

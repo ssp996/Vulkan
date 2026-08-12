@@ -903,7 +903,13 @@ void create_graphics_pipeline(const std::string vertex_shader_filepath, const st
     color_input_attribute_description.offset = static_cast<uint32_t>(offsetof(Vertex, color));
     color_input_attribute_description.format = VK_FORMAT_R32G32B32_SFLOAT;
 
-    std::vector<VkVertexInputAttributeDescription> vertex_input_attribute_descriptions = {position_input_attribute_description, color_input_attribute_description};
+    VkVertexInputAttributeDescription normal_input_attribute_description{};
+    normal_input_attribute_description.location = 2;
+    normal_input_attribute_description.binding = 0;
+    normal_input_attribute_description.offset = static_cast<uint32_t>(offsetof(Vertex, normal));
+    normal_input_attribute_description.format = VK_FORMAT_R32G32B32_SFLOAT;
+
+    std::vector<VkVertexInputAttributeDescription> vertex_input_attribute_descriptions = {position_input_attribute_description, color_input_attribute_description, normal_input_attribute_description};
     
     //VkPipelineVertexInputStateCreateInfo contains the arrays with VkVertexInputAttributeDescription and VkVertexInputBindingDescription structs
     VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info{};
@@ -912,7 +918,7 @@ void create_graphics_pipeline(const std::string vertex_shader_filepath, const st
     vertex_input_state_create_info.vertexBindingDescriptionCount = 1;
     vertex_input_state_create_info.pVertexBindingDescriptions = vertex_input_binding_descriptions.data();
 
-    vertex_input_state_create_info.vertexAttributeDescriptionCount = 2;
+    vertex_input_state_create_info.vertexAttributeDescriptionCount = 3;
     vertex_input_state_create_info.pVertexAttributeDescriptions = vertex_input_attribute_descriptions.data();
 
     VkPipelineInputAssemblyStateCreateInfo input_assembly{};
