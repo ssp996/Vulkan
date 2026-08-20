@@ -183,3 +183,5 @@ void create_buffer(VkDevice device, VkPhysicalDevice physical_device, const std:
 
     vkUnmapMemory(device, buffer_memory);
 }
+
+void create_deferred_render_pass(VkFormat swap_chain_color_format, VkSampleCountFlagBits samples, VkFormat depth_format, VkDevice& device, VkRenderPass& render_pass);

@@ -1024,14 +1024,18 @@ void create_graphics_pipeline(const std::string vertex_shader_filepath, const st
 }
 
 
-void create_frame_buffers(std::vector<VkFramebuffer>& swap_chain_frame_buffers, std::vector<VkImageView> swap_chain_image_views, VkRenderPass render_pass, VkExtent2D swap_chain_extent, VkDevice device, const std::vector<VkImageView>& depth_image_views) 
+void create_frame_buffers(std::vector<VkFramebuffer>& swap_chain_frame_buffers, std::vector<VkImageView> swap_chain_image_views, VkRenderPass render_pass, VkExtent2D swap_chain_extent, VkDevice device, const std::vector<VkImageView>& depth_image_views, bool deferred = false, const std::vector<VkImageView>* normal_views = nullptr, const std::vector<VkImageView>* albedo_views = nullptr) 
 {
     swap_chain_frame_buffers.resize(swap_chain_image_views.size());
 
     for (size_t i = 0; i < swap_chain_image_views.size(); i++)
-    {
-        
+    {   
         std::vector<VkImageView> attachments = {swap_chain_image_views[i], depth_image_views[i]};
+        if (deferred)
+        {
+            attachments.push_back((*normal_views)[i]);
+            attachments.push_back((*albedo_views)[i]);
+        }
 
         VkFramebufferCreateInfo frame_buffer_create_info{};
         frame_buffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -1347,3 +1351,117 @@ VkImageView create_image_view(VkDevice device, VkImage image, VkFormat format, V
     if (vkCreateImageView(device, &view_info, nullptr, &image_view) != VK_SUCCESS) throw std::runtime_error("failed to create image view!");
     return image_view;
 }
+
+void create_deferred_render_pass(VkFormat swap_chain_color_format, VkSampleCountFlagBits samples, VkFormat depth_format, VkDevice& device, VkRenderPass& render_pass)
+{
+    VkAttachmentDescription swapchain_attachment{};
+    swapchain_attachment.format = swap_chain_color_format;
+    swapchain_attachment.format = swap_chain_color_format;
+    swapchain_attachment.samples = samples;
+    swapchain_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; 
+    swapchain_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE; 
+    swapchain_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    swapchain_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    swapchain_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    swapchain_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    VkAttachmentDescription depth_attachment{};
+    depth_attachment.format = depth_format;
+    depth_attachment.samples = samples;
+    depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; 
+    depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+    VkAttachmentDescription normal_attachment{};
+    normal_attachment.format = VK_FORMAT_R16G16B16A16_SFLOAT; 
+    normal_attachment.samples = samples;
+    normal_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    normal_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; 
+    normal_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    normal_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    normal_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    normal_attachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkAttachmentDescription albedo_attachment{};
+    albedo_attachment.format = VK_FORMAT_R8G8B8A8_UNORM; 
+    albedo_attachment.samples = samples;
+    albedo_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    albedo_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; 
+    albedo_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    albedo_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    albedo_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    albedo_attachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    std::vector<VkAttachmentDescription> attachments = {swapchain_attachment, depth_attachment, normal_attachment, albedo_attachment};
+
+    VkAttachmentReference normal_ref{2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+    VkAttachmentReference albedo_ref{3, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+
+    std::vector<VkAttachmentReference> subpass_0_color_refs = {normal_ref, albedo_ref};
+
+    VkAttachmentReference depth_ref{};
+    depth_ref.attachment = 1;
+    depth_ref.layout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpass_0{};
+    subpass_0.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass_0.colorAttachmentCount = static_cast<uint32_t>(subpass_0_color_refs.size());
+    subpass_0.pColorAttachments = subpass_0_color_refs.data();
+    subpass_0.pDepthStencilAttachment = &depth_ref;
+
+    VkAttachmentReference depth_input_ref{1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL};
+    VkAttachmentReference normal_input_ref{2, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    VkAttachmentReference albedo_input_ref{3, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+
+    std::vector<VkAttachmentReference> subpass_1_input_refs = {depth_input_ref, normal_input_ref, albedo_input_ref};
+
+    VkAttachmentReference swapchain_ref{0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+
+    VkSubpassDescription subpass_1{};
+    subpass_1.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass_1.inputAttachmentCount = static_cast<uint32_t>(subpass_1_input_refs.size());
+    subpass_1.pInputAttachments = subpass_1_input_refs.data();
+    subpass_1.colorAttachmentCount = 1;
+    subpass_1.pColorAttachments = &swapchain_ref;
+
+    std::vector<VkSubpassDescription> subpasses = {subpass_0, subpass_1};
+
+    VkSubpassDependency dep_0{};
+    dep_0.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dep_0.dstSubpass = 0;
+    dep_0.srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+    dep_0.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dep_0.srcAccessMask = 0;
+    dep_0.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+    VkSubpassDependency dep_1{};
+    dep_1.srcSubpass = 0;
+    dep_1.dstSubpass = 1;
+    dep_1.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    dep_1.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    dep_1.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    dep_1.dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
+
+    std::vector<VkSubpassDependency> dependencies = {dep_0, dep_1};
+
+    VkRenderPassCreateInfo render_pass_info{};
+    render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    render_pass_info.attachmentCount = static_cast<uint32_t>(attachments.size());
+    render_pass_info.pAttachments = attachments.data();
+    render_pass_info.subpassCount = static_cast<uint32_t>(subpasses.size());
+    render_pass_info.pSubpasses = subpasses.data();
+    render_pass_info.dependencyCount = static_cast<uint32_t>(dependencies.size());
+    render_pass_info.pDependencies = dependencies.data();
+
+    if (vkCreateRenderPass(device, &render_pass_info, nullptr, &render_pass) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create render pass");
+    }
+}
+
+
+
+
