@@ -117,7 +117,7 @@ void create_descriptor_sets(VkDevice device, VkDescriptorSetLayout descriptor_se
 
 void create_graphics_pipeline(const std::string vertex_shader_filepath, const std::string fragment_shader_filepath, VkDevice device, VkPipelineLayout& pipeline_layout, VkRenderPass render_pass, VkPipeline& graphics_pipeline, VkDescriptorSetLayout& descriptor_set_layout);
 
-void create_frame_buffers(std::vector<VkFramebuffer>& swap_chain_frame_buffers, std::vector<VkImageView> swap_chain_image_views, VkRenderPass render_pass, VkExtent2D swap_chain_extent, VkDevice device, const std::vector<VkImageView>& depth_image_views);
+void create_frame_buffers(std::vector<VkFramebuffer>& swap_chain_frame_buffers, std::vector<VkImageView> swap_chain_image_views, VkRenderPass render_pass, VkExtent2D swap_chain_extent, VkDevice device, const std::vector<VkImageView>& depth_image_views, bool deferred = false, const std::vector<VkImageView>* normal_views = nullptr, const std::vector<VkImageView>* albedo_views = nullptr);
 
 void create_command_pool(VkPhysicalDevice physical_device, VkDevice device, VkSurfaceKHR surface, VkCommandPool& command_pool);
 
@@ -185,3 +185,13 @@ void create_buffer(VkDevice device, VkPhysicalDevice physical_device, const std:
 }
 
 void create_deferred_render_pass(VkFormat swap_chain_color_format, VkSampleCountFlagBits samples, VkFormat depth_format, VkDevice& device, VkRenderPass& render_pass);
+
+void create_deferred_descriptor_set_layout(VkDevice device, VkDescriptorSetLayout& descriptor_set_layout);
+
+void create_deferred_descriptor_pool(VkDevice device, VkDescriptorPool& descriptor_pool, int max_frames_in_flight);
+
+void create_deferred_descriptor_sets(VkDevice device, VkDescriptorSetLayout descriptor_set_layout, VkDescriptorPool descriptor_pool, std::vector<VkDescriptorSet>& descriptor_sets, std::vector<VkBuffer>& uniform_buffers ,int max_frames_in_flight, const std::vector<VkImageView>& depth_views, const std::vector<VkImageView>& normal_views, const std::vector<VkImageView>& albedo_views);
+
+void create_deferred_pipelines(const std::string& geom_vert_filepath, const std::string& geom_frag_filepath, const std::string& light_vert_filepath, const std::string& light_frag_filepath, VkDevice device, VkPipelineLayout& pipeline_layout, VkRenderPass render_pass, VkPipeline& geometry_pipeline, VkPipeline& lighting_pipeline, VkDescriptorSetLayout& descriptor_set_layout);
+
+

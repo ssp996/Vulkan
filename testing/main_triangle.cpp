@@ -76,10 +76,24 @@ int main()
     std::vector<VkDeviceMemory> depth_image_memories(swap_chain_images.size());
     std::vector<VkImageView> depth_image_views(swap_chain_images.size());
 
+    std::vector<VkImage> normal_images(swap_chain_images.size());
+    std::vector<VkDeviceMemory> normal_memories(swap_chain_images.size());
+    std::vector<VkImageView> normal_views(swap_chain_images.size());
+    
+    std::vector<VkImage> albedo_images(swap_chain_images.size());
+    std::vector<VkDeviceMemory> albedo_memories(swap_chain_images.size());
+    std::vector<VkImageView> albedo_views(swap_chain_images.size());
+
     for (size_t i = 0; i < swap_chain_images.size(); i++)
     {
-        create_image(device, physical_device, swap_chain_extent.width, swap_chain_extent.height, depth_format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depth_images[i], depth_image_memories[i], VK_SAMPLE_COUNT_1_BIT, VK_SHARING_MODE_EXCLUSIVE);
+        create_image(device, physical_device, swap_chain_extent.width, swap_chain_extent.height, depth_format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depth_images[i], depth_image_memories[i], VK_SAMPLE_COUNT_1_BIT, VK_SHARING_MODE_EXCLUSIVE);
         depth_image_views[i] = create_image_view(device, depth_images[i], depth_format, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+        create_image(device, physical_device, swap_chain_extent.width, swap_chain_extent.height, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, normal_images[i], normal_memories[i], VK_SAMPLE_COUNT_1_BIT, VK_SHARING_MODE_EXCLUSIVE);
+        normal_views[i] = create_image_view(device, normal_images[i], VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT);
+
+        create_image(device, physical_device, swap_chain_extent.width, swap_chain_extent.height, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, albedo_images[i], albedo_memories[i], VK_SAMPLE_COUNT_1_BIT, VK_SHARING_MODE_EXCLUSIVE);
+        albedo_views[i] = create_image_view(device, albedo_images[i], VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
     }
     
     std::vector<VkFramebuffer> swap_chain_frame_buffers;
@@ -90,7 +104,10 @@ int main()
         render_pass,
         swap_chain_extent,
         device,
-        depth_image_views
+        depth_image_views,
+        true,
+        &normal_views,
+        &albedo_views
     );
 
     VkCommandPool command_pool;
