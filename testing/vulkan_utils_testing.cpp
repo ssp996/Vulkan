@@ -1168,9 +1168,10 @@ void create_sync_objects(VkDevice device, std::vector<VkSemaphore>& image_availa
             throw std::runtime_error("failed to create sync objects");
         }
     }
-}
+}  
 
-void draw_frame(uint32_t current_frame, VkDevice device, std::vector<VkFence>& in_flight_fences, std::vector<VkCommandBuffer>& command_buffers, VkRenderPass render_pass, const std::vector<VkFramebuffer>& swap_chain_frame_buffers, VkExtent2D swap_chain_extent, VkPipeline graphics_pipeline, const std::vector<RenderObject>& render_objects, VkSwapchainKHR swap_chain, std::vector<VkSemaphore>& image_available_semaphores, std::vector<VkSemaphore>& render_finished_semaphores, VkQueue graphics_queue, VkDescriptorSet& descriptor_set, VkPipelineLayout pipeline_layout)
+// if calling in deferred rendering, pass the "graphics_pipeline" parameter as a VK_NULL_HANDLE (its not actually used)
+void draw_frame(uint32_t current_frame, VkDevice device, std::vector<VkFence>& in_flight_fences, std::vector<VkCommandBuffer>& command_buffers, VkRenderPass render_pass, const std::vector<VkFramebuffer>& swap_chain_frame_buffers, VkExtent2D swap_chain_extent, VkPipeline graphics_pipeline, const std::vector<RenderObject>& render_objects, VkSwapchainKHR swap_chain, std::vector<VkSemaphore>& image_available_semaphores, std::vector<VkSemaphore>& render_finished_semaphores, VkQueue graphics_queue, VkDescriptorSet& descriptor_set, VkPipelineLayout pipeline_layout, bool deferred=false, VkPipeline* geometry_pipeline=nullptr, VkPipeline* lighting_pipeline=nullptr)
 {
     vkWaitForFences(device, 1, &in_flight_fences[current_frame], VK_TRUE, UINT64_MAX);
     
@@ -1180,7 +1181,16 @@ void draw_frame(uint32_t current_frame, VkDevice device, std::vector<VkFence>& i
     vkResetFences(device, 1, &in_flight_fences[current_frame]);
 
     vkResetCommandBuffer(command_buffers[current_frame], 0);
-    record_command_buffer(image_index, command_buffers[current_frame], render_pass, swap_chain_frame_buffers, swap_chain_extent, graphics_pipeline, render_objects, descriptor_set, pipeline_layout);
+    if (deferred)
+    {
+        if (geometry_pipeline == nullptr || lighting_pipeline == nullptr) throw std::runtime_error("missing pipeline");
+        record_deferred_command_buffer(image_index, command_buffers[current_frame], render_pass, swap_chain_frame_buffers, swap_chain_extent, *geometry_pipeline, *lighting_pipeline, render_objects, descriptor_set, pipeline_layout);
+    }
+    else 
+    {
+        record_command_buffer(image_index, command_buffers[current_frame], render_pass, swap_chain_frame_buffers, swap_chain_extent, graphics_pipeline, render_objects, descriptor_set, pipeline_layout);
+
+    }
 
     VkSubmitInfo submit_info{};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1606,7 +1616,7 @@ void create_deferred_descriptor_sets(VkDevice device, VkDescriptorSetLayout desc
 
 void create_deferred_pipelines(const std::string& geom_vert_filepath, const std::string& geom_frag_filepath, const std::string& light_vert_filepath, const std::string& light_frag_filepath, VkDevice device, VkPipelineLayout& pipeline_layout, VkRenderPass render_pass, VkPipeline& geometry_pipeline, VkPipeline& lighting_pipeline, VkDescriptorSetLayout& descriptor_set_layout)
 {   
-    // 1. Load the 4 Shaders
+    //load shaders
     std::vector<char> geom_vert_code = readFile(geom_vert_filepath);
     std::vector<char> geom_frag_code = readFile(geom_frag_filepath);
     std::vector<char> light_vert_code = readFile(light_vert_filepath);
@@ -1782,7 +1792,7 @@ void create_deferred_pipelines(const std::string& geom_vert_filepath, const std:
     vkDestroyShaderModule(device, light_frag_module, nullptr);
 }
 
-void record_command_buffer(uint32_t image_index, VkCommandBuffer command_buffer, VkRenderPass render_pass, const std::vector<VkFramebuffer>& swap_chain_frame_buffers, VkExtent2D swap_chain_extent, VkPipeline geometry_pipeline, VkPipeline lighting_pipeline, const std::vector<RenderObject>& render_objects, VkDescriptorSet& descriptor_set, VkPipelineLayout pipeline_layout)
+void record_deferred_command_buffer(uint32_t image_index, VkCommandBuffer command_buffer, VkRenderPass render_pass, const std::vector<VkFramebuffer>& swap_chain_frame_buffers, VkExtent2D swap_chain_extent, VkPipeline geometry_pipeline, VkPipeline lighting_pipeline, const std::vector<RenderObject>& render_objects, VkDescriptorSet& descriptor_set, VkPipelineLayout pipeline_layout)
 {
     VkCommandBufferBeginInfo command_buffer_begin_info{};
     command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -1839,21 +1849,14 @@ void record_command_buffer(uint32_t image_index, VkCommandBuffer command_buffer,
         vkCmdDrawIndexed(command_buffer, object.index_count, 1, 0, 0, 0);  
     }
 
-    //start next 
+    //start next subpass
     vkCmdNextSubpass(command_buffer, VK_SUBPASS_CONTENTS_INLINE);
 
 
-    // ==========================================
-    // SUBPASS 1: LIGHTING PASS
-    // ==========================================
-    
-    // Bind the completely different pipeline configuration (No depth test!)
+    //2nd one doesnt need vertex buffer (that hardcoded triangle thing)
     vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, lighting_pipeline);
 
-    // Notice we DO NOT bind a Vertex Buffer here. 
-    // We just tell the GPU to draw 3 vertices. The light.vert shader generates them instantly!
     vkCmdDraw(command_buffer, 3, 1, 0, 0);
-
 
     vkCmdEndRenderPass(command_buffer);
 

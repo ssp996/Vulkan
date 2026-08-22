@@ -59,16 +59,24 @@ int main()
     
     VkPipelineLayout pipeline_layout;
     VkPipeline graphics_pipeline;
+
+    VkPipeline geometry_pipeline;
+    VkPipeline lighting_pipeline;
+
     VkDescriptorSetLayout descriptor_set_layout;
 
-    create_descriptor_set_layout(device, descriptor_set_layout);
+    create_deferred_descriptor_set_layout(device, descriptor_set_layout);
 
-    create_graphics_pipeline(
-        "shaders/test_vertex.spv",
-        "shaders/test_fragment.spv",
+    create_deferred_pipelines(
+        "shaders/deferred_geom.vert",
+        "shaders/deferred_geom.frag",
+        "shaders/deferred_light.vert",
+        "shaders/deferred_light.frag",
         device,
         pipeline_layout,
-        render_pass, graphics_pipeline,
+        render_pass,
+        geometry_pipeline,
+        lighting_pipeline,
         descriptor_set_layout
     );
 
@@ -76,11 +84,24 @@ int main()
     std::vector<VkDeviceMemory> depth_image_memories(swap_chain_images.size());
     std::vector<VkImageView> depth_image_views(swap_chain_images.size());
 
+    std::vector<VkImage> normal_images(swap_chain_images.size());
+    std::vector<VkDeviceMemory> normal_memories(swap_chain_images.size());
+    std::vector<VkImageView> normal_views(swap_chain_images.size());
+    
+    std::vector<VkImage> albedo_images(swap_chain_images.size());
+    std::vector<VkDeviceMemory> albedo_memories(swap_chain_images.size());
+    std::vector<VkImageView> albedo_views(swap_chain_images.size());
 
     for (size_t i = 0; i < swap_chain_images.size(); i++)
     {
         create_image(device, physical_device, swap_chain_extent.width, swap_chain_extent.height, depth_format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depth_images[i], depth_image_memories[i], VK_SAMPLE_COUNT_1_BIT, VK_SHARING_MODE_EXCLUSIVE);
         depth_image_views[i] = create_image_view(device, depth_images[i], depth_format, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+        create_image(device, physical_device, swap_chain_extent.width, swap_chain_extent.height, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, normal_images[i], normal_memories[i], VK_SAMPLE_COUNT_1_BIT, VK_SHARING_MODE_EXCLUSIVE);
+        normal_views[i] = create_image_view(device, normal_images[i], VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT);
+
+        create_image(device, physical_device, swap_chain_extent.width, swap_chain_extent.height, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, albedo_images[i], albedo_memories[i], VK_SAMPLE_COUNT_1_BIT, VK_SHARING_MODE_EXCLUSIVE);
+        albedo_views[i] = create_image_view(device, albedo_images[i], VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
     }
     
     std::vector<VkFramebuffer> swap_chain_frame_buffers;
@@ -91,11 +112,15 @@ int main()
         render_pass,
         swap_chain_extent,
         device,
-        depth_image_views
+        depth_image_views,
+        true,
+        &normal_views,
+        &albedo_views
     );
 
     VkCommandPool command_pool;
     create_command_pool(physical_device, device, surface, command_pool);
+
 
     std::vector<VkCommandBuffer> command_buffers;
     command_buffers.resize(MAX_FRAMES_IN_FLIGHT);
@@ -186,10 +211,10 @@ int main()
     create_uniform_buffer(device, physical_device, uniform_buffers, uniform_buffers_memory, uniform_buffers_mapped, MAX_FRAMES_IN_FLIGHT);
 
     VkDescriptorPool descriptor_pool{};
-    create_descriptor_pool(device, descriptor_pool, MAX_FRAMES_IN_FLIGHT);
+    create_deferred_descriptor_pool(device, descriptor_pool, MAX_FRAMES_IN_FLIGHT);
 
     std::vector<VkDescriptorSet> descriptor_sets;   
-    create_descriptor_sets(device, descriptor_set_layout, descriptor_pool, descriptor_sets, uniform_buffers, MAX_FRAMES_IN_FLIGHT);
+    create_deferred_descriptor_sets(device, descriptor_set_layout, descriptor_pool, descriptor_sets, uniform_buffers, MAX_FRAMES_IN_FLIGHT, depth_image_views, normal_views, albedo_views);
 
     uint32_t current_frame = 0;
 
@@ -261,14 +286,17 @@ int main()
             render_pass,
             swap_chain_frame_buffers,
             swap_chain_extent,
-            graphics_pipeline,
+            VK_NULL_HANDLE,
             render_objects,
             swap_chain,
             image_available_semaphores,
             render_finished_semaphores,
             graphics_queue,
             descriptor_sets[current_frame],
-            pipeline_layout
+            pipeline_layout,
+            true,
+            &geometry_pipeline,
+            &lighting_pipeline
         );
 
         current_frame = (current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
@@ -307,4 +335,3 @@ int main()
 
     return 0;
 }
-
