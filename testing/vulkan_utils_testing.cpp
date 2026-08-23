@@ -1024,7 +1024,7 @@ void create_graphics_pipeline(const std::string vertex_shader_filepath, const st
 }
 
 
-void create_frame_buffers(std::vector<VkFramebuffer>& swap_chain_frame_buffers, std::vector<VkImageView> swap_chain_image_views, VkRenderPass render_pass, VkExtent2D swap_chain_extent, VkDevice device, const std::vector<VkImageView>& depth_image_views, bool deferred = false, const std::vector<VkImageView>* normal_views = nullptr, const std::vector<VkImageView>* albedo_views = nullptr) 
+void create_frame_buffers(std::vector<VkFramebuffer>& swap_chain_frame_buffers, std::vector<VkImageView> swap_chain_image_views, VkRenderPass render_pass, VkExtent2D swap_chain_extent, VkDevice device, const std::vector<VkImageView>& depth_image_views, bool deferred, const std::vector<VkImageView>* normal_views, const std::vector<VkImageView>* albedo_views)
 {
     swap_chain_frame_buffers.resize(swap_chain_image_views.size());
 
@@ -1171,7 +1171,7 @@ void create_sync_objects(VkDevice device, std::vector<VkSemaphore>& image_availa
 }  
 
 // if calling in deferred rendering, pass the "graphics_pipeline" parameter as a VK_NULL_HANDLE (its not actually used)
-void draw_frame(uint32_t current_frame, VkDevice device, std::vector<VkFence>& in_flight_fences, std::vector<VkCommandBuffer>& command_buffers, VkRenderPass render_pass, const std::vector<VkFramebuffer>& swap_chain_frame_buffers, VkExtent2D swap_chain_extent, VkPipeline graphics_pipeline, const std::vector<RenderObject>& render_objects, VkSwapchainKHR swap_chain, std::vector<VkSemaphore>& image_available_semaphores, std::vector<VkSemaphore>& render_finished_semaphores, VkQueue graphics_queue, VkDescriptorSet& descriptor_set, VkPipelineLayout pipeline_layout, bool deferred=false, VkPipeline* geometry_pipeline=nullptr, VkPipeline* lighting_pipeline=nullptr)
+void draw_frame(uint32_t current_frame, VkDevice device, std::vector<VkFence>& in_flight_fences, std::vector<VkCommandBuffer>& command_buffers, VkRenderPass render_pass, const std::vector<VkFramebuffer>& swap_chain_frame_buffers, VkExtent2D swap_chain_extent, VkPipeline graphics_pipeline, const std::vector<RenderObject>& render_objects, VkSwapchainKHR swap_chain, std::vector<VkSemaphore>& image_available_semaphores, std::vector<VkSemaphore>& render_finished_semaphores, VkQueue graphics_queue, VkDescriptorSet& descriptor_set, VkPipelineLayout pipeline_layout, bool deferred, VkPipeline* geometry_pipeline, VkPipeline* lighting_pipeline)
 {
     vkWaitForFences(device, 1, &in_flight_fences[current_frame], VK_TRUE, UINT64_MAX);
     
@@ -1224,9 +1224,10 @@ void draw_frame(uint32_t current_frame, VkDevice device, std::vector<VkFence>& i
 
     vkQueuePresentKHR(graphics_queue, &present_info);
 }
-
-void cleanup(VkDevice device, std::vector<VkSemaphore> render_finished_semaphores, std::vector<VkSemaphore> image_available_semaphores, std::vector<VkFence> in_flight_fences, VkCommandPool command_pool, std::vector<VkFramebuffer> swap_chain_frame_buffers, VkPipeline graphics_pipeline, VkPipelineLayout pipeline_layout, VkRenderPass render_pass, std::vector<VkImageView> swap_chain_image_views, VkSwapchainKHR swap_chain, VkDebugUtilsMessengerEXT debug_messenger, VkSurfaceKHR surface, VkInstance instance, GLFWwindow* window, std::vector<VkBuffer> uniform_buffers, std::vector<VkDeviceMemory> uniform_buffers_memory, VkDescriptorPool descriptor_pool, VkDescriptorSetLayout descriptor_set_layout, int max_frames_in_flight, std::vector<VkImageView> depth_image_views, std::vector<VkImage> depth_images, std::vector<VkDeviceMemory> depth_image_memories, std::vector<RenderObject> render_objects)
+//if using deferred rendering, pass "graphics_pipeline" as VK_NULL_HANDLE
+void cleanup(VkDevice device, std::vector<VkSemaphore> render_finished_semaphores, std::vector<VkSemaphore> image_available_semaphores, std::vector<VkFence> in_flight_fences, VkCommandPool command_pool, std::vector<VkFramebuffer> swap_chain_frame_buffers, VkPipeline graphics_pipeline, VkPipelineLayout pipeline_layout, VkRenderPass render_pass, std::vector<VkImageView> swap_chain_image_views, VkSwapchainKHR swap_chain, VkDebugUtilsMessengerEXT debug_messenger, VkSurfaceKHR surface, VkInstance instance, GLFWwindow* window, std::vector<VkBuffer> uniform_buffers, std::vector<VkDeviceMemory> uniform_buffers_memory, VkDescriptorPool descriptor_pool, VkDescriptorSetLayout descriptor_set_layout, int max_frames_in_flight, std::vector<VkImageView> depth_image_views, std::vector<VkImage> depth_images, std::vector<VkDeviceMemory> depth_image_memories, std::vector<RenderObject> render_objects, bool deferred, VkPipeline* geometry_pipeline, VkPipeline* lighting_pipeline, std::vector<VkImage>* normal_images, std::vector<VkDeviceMemory>* normal_memories, std::vector<VkImageView>* normal_views, std::vector<VkImage>* albedo_images, std::vector<VkDeviceMemory>* albedo_memories, std::vector<VkImageView>* albedo_views)
 {
+    if (deferred && (!geometry_pipeline || ! lighting_pipeline || !normal_images || !normal_memories || !normal_views || !albedo_images || !albedo_memories || !albedo_views)) throw std::runtime_error("missing argument for cleanup (deferred rendering)");
     for (int i = 0; i < max_frames_in_flight; i++)
     {
         vkDestroySemaphore(device, render_finished_semaphores[i], nullptr);
@@ -1251,15 +1252,40 @@ void cleanup(VkDevice device, std::vector<VkSemaphore> render_finished_semaphore
         vkDestroyFramebuffer(device, frame_buffer, nullptr);
     }
 
-    vkDestroyPipeline(device, graphics_pipeline, nullptr);
-    vkDestroyPipelineLayout(device, pipeline_layout, nullptr);
-    vkDestroyRenderPass(device, render_pass, nullptr);
+    if (!deferred)
+    {
+        vkDestroyPipeline(device, graphics_pipeline, nullptr);
+        vkDestroyPipelineLayout(device, pipeline_layout, nullptr);
+        vkDestroyRenderPass(device, render_pass, nullptr);
+    }
+    else if (deferred)
+    {
+        vkDestroyPipeline(device, *geometry_pipeline, nullptr);
+        vkDestroyPipelineLayout(device, pipeline_layout, nullptr);
+        vkDestroyRenderPass(device, render_pass, nullptr);
+
+        vkDestroyPipeline(device, *lighting_pipeline, nullptr);
+        vkDestroyPipelineLayout(device, pipeline_layout, nullptr);
+        vkDestroyRenderPass(device, render_pass, nullptr);
+    }
+    
 
     for (size_t i = 0; i < swap_chain_image_views.size(); i++)
     {
         vkDestroyImageView(device, depth_image_views[i], nullptr);
         vkDestroyImage(device, depth_images[i], nullptr);
         vkFreeMemory(device, depth_image_memories[i], nullptr);
+
+        if (deferred)
+        {
+            vkDestroyImageView(device, (*normal_views)[i], nullptr);
+            vkDestroyImage(device, (*normal_images)[i], nullptr);
+            vkFreeMemory(device, (*normal_memories)[i], nullptr);
+
+            vkDestroyImageView(device, (*albedo_views)[i], nullptr);
+            vkDestroyImage(device, (*albedo_images)[i], nullptr);
+            vkFreeMemory(device, (*albedo_memories)[i], nullptr);
+        }
     }
     
     for (auto imageView : swap_chain_image_views) {
@@ -1417,7 +1443,7 @@ void create_deferred_render_pass(VkFormat swap_chain_color_format, VkSampleCount
 
     VkAttachmentReference depth_ref{};
     depth_ref.attachment = 1;
-    depth_ref.layout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+    depth_ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     VkSubpassDescription subpass_0{};
     subpass_0.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -1866,6 +1892,30 @@ void record_deferred_command_buffer(uint32_t image_index, VkCommandBuffer comman
     }
 }
 
+void create_custom_descriptor_set_layout(VkDevice device, VkDescriptorSetLayout& descriptor_set_layout, const std::vector<uint32_t>& bindings, const std::vector<uint32_t>& descriptor_counts, const std::vector<VkDescriptorType>& descriptor_types, const std::vector<VkSampler*> samplers)
+{
+    std::vector<VkDescriptorSetLayoutBinding> layout_bindings;
+    for (int i = 0; i < bindings.size(); i++)
+    {
+        VkDescriptorSetLayoutBinding curr_layout{};
+        curr_layout.binding = bindings[i];
+        curr_layout.descriptorCount = descriptor_counts[i];
+        curr_layout.descriptorType = descriptor_types[i];
+        curr_layout.pImmutableSamplers = samplers[i];
+
+        layout_bindings.push_back(curr_layout);
+    }
+
+    VkDescriptorSetLayoutCreateInfo layout_info{};
+    layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layout_info.bindingCount = static_cast<uint32_t>(layout_bindings.size());
+    layout_info.pBindings = layout_bindings.data();
+
+    if (vkCreateDescriptorSetLayout(device, &layout_info, nullptr, &descriptor_set_layout) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create descriptor set layout");
+    }
+}
 
 
 
