@@ -6,9 +6,9 @@ layout(set = 0, binding = 0) uniform uniform_buffer_object{
     vec3 light_dir;
 }ubo;
 
-layout(input_attachment_index = 0, set = 0, binding = 1) uniform subpassInput inputDepth;
-layout(input_attachment_index = 1, set = 0, binding = 2) uniform subpassInput inputNormal;
-layout(input_attachment_index = 2, set = 0, binding = 3) uniform subpassInput inputAlbedo;
+layout(input_attachment_index = 0, set = 1, binding = 0) uniform subpassInput inputDepth;
+layout(input_attachment_index = 1, set = 1, binding = 1) uniform subpassInput inputNormal;
+layout(input_attachment_index = 2, set = 1, binding = 2) uniform subpassInput inputAlbedo;
 
 layout(location = 0) out vec4 outColor; // Final output to Swapchain
 

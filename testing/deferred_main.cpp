@@ -63,9 +63,14 @@ int main()
         VkPipeline geometry_pipeline;
         VkPipeline lighting_pipeline;
 
-        VkDescriptorSetLayout descriptor_set_layout;
 
-        create_deferred_descriptor_set_layout(device, descriptor_set_layout);
+        VkDescriptorSetLayout ubo_descriptor_layout;
+        create_custom_descriptor_set_layout(device, ubo_descriptor_layout, {0}, {1}, {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER}, {nullptr}, {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT});
+
+        VkDescriptorSetLayout g_buffer_descriptor_layout;
+        create_custom_descriptor_set_layout(device, g_buffer_descriptor_layout, {0, 1, 2}, {1, 1, 1}, {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT}, {nullptr, nullptr, nullptr}, {VK_SHADER_STAGE_FRAGMENT_BIT, VK_SHADER_STAGE_FRAGMENT_BIT, VK_SHADER_STAGE_FRAGMENT_BIT});
+
+        std::vector<VkDescriptorSetLayout> descriptor_set_layouts = {ubo_descriptor_layout, g_buffer_descriptor_layout};
 
         create_deferred_pipelines(
             "shaders/deferred_geom_vert.spv",
@@ -77,7 +82,7 @@ int main()
             render_pass,
             geometry_pipeline,
             lighting_pipeline,
-            descriptor_set_layout
+            descriptor_set_layouts
         );
 
         std::vector<VkImage> depth_images(swap_chain_images.size());
@@ -211,10 +216,18 @@ int main()
         create_uniform_buffer(device, physical_device, uniform_buffers, uniform_buffers_memory, uniform_buffers_mapped, MAX_FRAMES_IN_FLIGHT);
 
         VkDescriptorPool descriptor_pool{};
-        create_deferred_descriptor_pool(device, descriptor_pool, MAX_FRAMES_IN_FLIGHT);
+        create_custom_descriptor_pool({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT}, {MAX_FRAMES_IN_FLIGHT, static_cast<uint32_t>(swap_chain_images.size() * 3)}, static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT + swap_chain_images.size()), descriptor_pool, device);
+        
+        std::vector<VkDescriptorSet> ubo_descriptor_sets;
+        
+        const std::vector<uint32_t> ubo_offsets(MAX_FRAMES_IN_FLIGHT, 0);
+        const std::vector<uint32_t> ubo_bindings(MAX_FRAMES_IN_FLIGHT, 0);
 
-        std::vector<VkDescriptorSet> descriptor_sets;   
-        create_deferred_descriptor_sets(device, descriptor_set_layout, descriptor_pool, descriptor_sets, uniform_buffers, MAX_FRAMES_IN_FLIGHT, depth_image_views, normal_views, albedo_views);
+        create_ubo_descriptor_sets<UniformBufferObject>(MAX_FRAMES_IN_FLIGHT, ubo_descriptor_layout, descriptor_pool, ubo_descriptor_sets, device, uniform_buffers, ubo_offsets, ubo_bindings);
+
+        std::vector<VkDescriptorSet> g_buffer_descriptor_sets;
+
+        create_g_buffer_descriptor_sets(g_buffer_descriptor_layout, static_cast<uint32_t>(swap_chain_images.size()), descriptor_pool, g_buffer_descriptor_sets, device, depth_image_views, normal_views, albedo_views, 0, 1, 2);
 
         uint32_t current_frame = 0;
 
@@ -278,6 +291,7 @@ int main()
 
             memcpy(uniform_buffers_mapped[current_frame], &ubo, sizeof(ubo));
 
+
             draw_frame(
                 current_frame,
                 device, 
@@ -292,11 +306,12 @@ int main()
                 image_available_semaphores,
                 render_finished_semaphores,
                 graphics_queue,
-                descriptor_sets[current_frame],
+                ubo_descriptor_sets[current_frame],
                 pipeline_layout,
                 true,
                 &geometry_pipeline,
-                &lighting_pipeline
+                &lighting_pipeline,
+                &g_buffer_descriptor_sets
             );
 
             current_frame = (current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
@@ -323,7 +338,7 @@ int main()
             uniform_buffers,
             uniform_buffers_memory,
             descriptor_pool,
-            descriptor_set_layout,
+            ubo_descriptor_layout,
             MAX_FRAMES_IN_FLIGHT,
             depth_image_views,
             depth_images,
@@ -337,7 +352,8 @@ int main()
             &normal_views,
             &albedo_images,
             &albedo_memories,
-            &albedo_views
+            &albedo_views,
+            &g_buffer_descriptor_layout
         );
 
         glfwTerminate();
