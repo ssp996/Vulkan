@@ -426,13 +426,21 @@ void create_instance(VkInstance& instance, const char* app_name, uint32_t api_ve
     create_info.ppEnabledExtensionNames = extensions.data();
 
     VkDebugUtilsMessengerCreateInfoEXT dbg{};
+    VkValidationFeatureEnableEXT enabled_features[] = {VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT};
+    VkValidationFeaturesEXT validation_features{};
     if (enableValidationLayers)
     {
         create_info.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-        create_info.ppEnabledLayerNames = validationLayers.data();   // <-- missing
+        create_info.ppEnabledLayerNames = validationLayers.data();
+        
+        
+        validation_features.sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT;
+        validation_features.enabledValidationFeatureCount = 1;
+        validation_features.pEnabledValidationFeatures = enabled_features;
+        validation_features.pNext = &dbg;   
 
         populateDebugMessengerCreateInfo(dbg);
-        create_info.pNext = &dbg;
+        create_info.pNext = &validation_features;
     }
     else
     {
@@ -1484,7 +1492,7 @@ void create_deferred_render_pass(VkFormat swap_chain_color_format, VkSampleCount
     VkSubpassDependency dep_0{};
     dep_0.srcSubpass = VK_SUBPASS_EXTERNAL;
     dep_0.dstSubpass = 0;
-    dep_0.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dep_0.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     dep_0.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     dep_0.srcAccessMask = 0;
     dep_0.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
@@ -1493,12 +1501,28 @@ void create_deferred_render_pass(VkFormat swap_chain_color_format, VkSampleCount
     dep_1.srcSubpass = 0;
     dep_1.dstSubpass = 1;
     dep_1.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-    dep_1.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    dep_1.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     dep_1.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-    dep_1.dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
+    dep_1.dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     dep_1.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
-    std::vector<VkSubpassDependency> dependencies = {dep_0, dep_1};
+    VkSubpassDependency dep_2{};
+    dep_2.srcSubpass = 1;
+    dep_2.dstSubpass = VK_SUBPASS_EXTERNAL;
+    dep_2.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    dep_2.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dep_2.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    dep_2.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+    VkSubpassDependency dep_3{};
+    dep_3.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dep_3.dstSubpass = 1;
+    dep_3.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dep_3.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dep_3.srcAccessMask = 0;
+    dep_3.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    std::vector<VkSubpassDependency> dependencies = {dep_0, dep_1, dep_2, dep_3};
 
     VkRenderPassCreateInfo render_pass_info{};
     render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -1785,7 +1809,7 @@ void create_deferred_pipelines(const std::string& geom_vert_filepath, const std:
         {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0, VK_SHADER_STAGE_FRAGMENT_BIT, light_frag_module, "main", nullptr}
     };
 
-    //dont need vertex input because of that fullscreen triangle thing
+    //fullscreen triangle
     VkPipelineVertexInputStateCreateInfo light_vertex_input{};
     light_vertex_input.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     light_vertex_input.vertexBindingDescriptionCount = 0;

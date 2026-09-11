@@ -240,6 +240,8 @@ int main()
         cube.index_buffer = index_buffer;
         cube.index_count = static_cast<uint32_t>(indices.size());
         cube.push_constants = cube_push_constants;
+        cube.vertex_buffer_memory = vertex_buffer_memory;
+        cube.index_buffer_memory  = index_buffer_memory;
 
         VkBuffer floor_buffer;
         VkDeviceMemory floor_memory;
@@ -254,13 +256,15 @@ int main()
         PushConstantData floor_push_constants{};    
         floor_push_constants.color = glm::vec3(1.0f, 1.0f, 1.0f);
         floor_push_constants.model = glm::mat4(1.0f);
-
+        
 
         RenderObject floor{};
         floor.vertex_buffer = floor_buffer;
         floor.index_buffer = floor_index_buffer;
         floor.index_count = static_cast<uint32_t>(floor_indices.size());
         floor.push_constants = floor_push_constants;
+        floor.vertex_buffer_memory = floor_memory;
+        floor.index_buffer_memory  = floor_index_memory;
 
 
         std::vector<RenderObject> render_objects = {cube, floor};
