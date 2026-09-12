@@ -14,15 +14,17 @@ struct QueueFamilyIndices
 {
     std::optional<uint32_t> graphicsFamily;
     std::optional<uint32_t> presentFamily;
+    std::optional<uint32_t> computeFamily;
+    bool compute = false;
 
     bool isComplete() 
-    {
-        return graphicsFamily.has_value() && presentFamily.has_value();
+    { 
+        return compute ? graphicsFamily.has_value() && presentFamily.has_value() && computeFamily.has_value() : graphicsFamily.has_value() && presentFamily.has_value();
     }
 
     uint32_t size()
     {
-        return (static_cast<uint32_t>(graphicsFamily.has_value()) + static_cast<uint32_t>(presentFamily.has_value()));
+        return (static_cast<uint32_t>(graphicsFamily.has_value()) + static_cast<uint32_t>(presentFamily.has_value()) + static_cast<uint32_t>(computeFamily.has_value()));
     }
 };
 
@@ -35,9 +37,10 @@ struct SwapChainSupportDetails
     std::vector<VkPresentModeKHR> presentModes;
 };
 
-QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface) 
+QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface, bool compute) 
 {
     QueueFamilyIndices indices;
+    if (compute) indices.compute = true;
 
     uint32_t queueFamilyCount = 0;
     //get queue family count (usually like 3)
@@ -54,6 +57,10 @@ QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surfa
         if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) 
         {
             indices.graphicsFamily = i;
+        }
+        if (queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT)
+        {
+            indices.computeFamily = i;
         }
 
         VkBool32 presentSupport = false;
@@ -180,9 +187,9 @@ bool checkDeviceExtensionSupport(VkPhysicalDevice device)
 }
 
 //function to check gpu validity
-bool isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface) 
-{
-    QueueFamilyIndices indices = findQueueFamilies(device, surface);
+bool isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface, bool compute) 
+{   
+    QueueFamilyIndices indices = findQueueFamilies(device, surface, compute);
 
     bool extensionsSupported = checkDeviceExtensionSupport(device);
 
@@ -195,7 +202,6 @@ bool isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface)
 
     return indices.isComplete() && extensionsSupported && swapChainAdequate;
 }
-
 
 //Used to create the debug messenger. Needed because the debug messenger is a vulkan extension (hence the EXT)
 VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger) 
@@ -457,7 +463,7 @@ void create_instance(VkInstance& instance, const char* app_name, uint32_t api_ve
 
 
 //list and select physical device
-void pick_physical_device(VkInstance instance, VkPhysicalDevice& physical_device, VkSurfaceKHR surface)
+void pick_physical_device(VkInstance instance, VkPhysicalDevice& physical_device, VkSurfaceKHR surface, bool compute)
 {
     uint32_t device_count = 0;
 
@@ -475,8 +481,8 @@ void pick_physical_device(VkInstance instance, VkPhysicalDevice& physical_device
     vkEnumeratePhysicalDevices(instance, &device_count, devices.data());
 
     for (const auto& device : devices)
-    {
-        if (isDeviceSuitable(device, surface))
+    {   
+        if (isDeviceSuitable(device, surface, compute))
         {
             physical_device = device;
             break;
@@ -489,13 +495,14 @@ void pick_physical_device(VkInstance instance, VkPhysicalDevice& physical_device
     }
 }
 
-void create_logical_device(VkPhysicalDevice physical_device, VkDevice& device, VkSurfaceKHR surface, VkQueue& graphics_queue, VkQueue& present_queue)
-{
-    QueueFamilyIndices indices = findQueueFamilies(physical_device, surface);
+void create_logical_device(VkPhysicalDevice physical_device, VkDevice& device, VkSurfaceKHR surface, VkQueue& graphics_queue, VkQueue& present_queue, bool compute, VkQueue* compute_queue)
+{   
+    QueueFamilyIndices indices = findQueueFamilies(physical_device, surface, compute);
 
     //initialise vector of queue create infos
     std::vector<VkDeviceQueueCreateInfo> queue_create_infos;
     std::set<uint32_t> unique_queue_families = {indices.graphicsFamily.value(), indices.presentFamily.value()};
+    if (compute) unique_queue_families.insert(indices.computeFamily.value());
 
     //both graphics and present queues have same priority
     float queue_priority = 1.0f;
@@ -533,9 +540,10 @@ void create_logical_device(VkPhysicalDevice physical_device, VkDevice& device, V
         throw std::runtime_error("failed to create logical device!");
     }  
     
-    //gets memory handles to queues (pointers basically)
+    //gets memory handles to queues 
     vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphics_queue);
     vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &present_queue);
+    if (compute) vkGetDeviceQueue(device, indices.computeFamily.value(), 0, compute_queue);
 }
 
 void create_swapchain(VkPhysicalDevice physical_device, VkDevice device, VkSurfaceKHR surface, GLFWwindow* window, VkSwapchainKHR& swap_chain, std::vector<VkImage>& swap_chain_images, VkFormat& swap_chain_image_format, VkExtent2D& swap_chain_extent)

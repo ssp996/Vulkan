@@ -55,7 +55,7 @@ struct RenderObject
     VkDeviceMemory index_buffer_memory;
 };
 
-QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface);
+QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface, bool compute=false); 
 
 SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface);
 
@@ -67,7 +67,7 @@ VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, GLFWwi
 
 bool checkDeviceExtensionSupport(VkPhysicalDevice device);
 
-bool isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface);
+bool isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface, bool compute=false);
 
 VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger);
 
@@ -93,9 +93,9 @@ void create_instance_without_debug(VkInstance& instance, const char* app_name, u
 
 void create_instance(VkInstance& instance, const char* app_name, uint32_t api_version);
 
-void pick_physical_device(VkInstance instance, VkPhysicalDevice& physical_device, VkSurfaceKHR surface);
+void pick_physical_device(VkInstance instance, VkPhysicalDevice& physical_device, VkSurfaceKHR surface, bool compute=false);
 
-void create_logical_device(VkPhysicalDevice physical_device, VkDevice& device, VkSurfaceKHR surface, VkQueue& graphics_queue, VkQueue& present_queue);
+void create_logical_device(VkPhysicalDevice physical_device, VkDevice& device, VkSurfaceKHR surface, VkQueue& graphics_queue, VkQueue& present_queue, bool compute=false, VkQueue* compute_queue=nullptr);
 
 void create_swapchain(VkPhysicalDevice physical_device, VkDevice device, VkSurfaceKHR surface, GLFWwindow* window, VkSwapchainKHR& swap_chain, std::vector<VkImage>& swap_chain_images, VkFormat& swap_chain_image_format, VkExtent2D& swap_chain_extent);
 
