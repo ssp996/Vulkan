@@ -34,3 +34,105 @@ void create_compute_pipeline(const std::string& shader_filepath, VkPipelineLayou
 
     vkDestroyShaderModule(device, compute_shader_module, nullptr);
 }
+
+int is_compute_ready(VkPhysicalDevice physical_device)
+{
+    uint32_t queue_family_count = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count, nullptr); 
+
+    std::vector<VkQueueFamilyProperties> queue_families(queue_family_count);
+
+    vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count, queue_families.data()); 
+    
+    std::optional<uint32_t> queue_family_index;
+
+    int i = 0;
+    for (const auto& queue_family: queue_families)
+    {
+        if (queue_family.queueFlags & VK_QUEUE_COMPUTE_BIT && !(queue_family.queueFlags & VK_QUEUE_GRAPHICS_BIT))
+        {
+            queue_family_index = i;
+            break;
+        }
+        i++;
+    }
+
+    if (!queue_family_index.has_value())
+    {
+        return -1;
+    }
+    else if (queue_family_index.has_value())
+    {
+        return queue_family_index.value();
+    }
+}
+
+void create_compute_device(VkPhysicalDevice physical_device, VkDevice& device, VkQueue& compute_queue)
+{
+    uint32_t queue_family_index = is_compute_ready(physical_device);
+
+    if (queue_family_index == -1)
+    {
+        throw std::runtime_error("no dedicated compute queue family found");
+    }
+
+    float compute_queue_priority = 1.0f;
+
+    VkDeviceQueueCreateInfo queue_create_info{};
+    queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queue_create_info.queueFamilyIndex = static_cast<uint32_t>(queue_family_index);
+    queue_create_info.queueCount = 1;
+    queue_create_info.pQueuePriorities = &compute_queue_priority;
+
+    VkPhysicalDeviceFeatures physical_device_features{};
+
+    VkDeviceCreateInfo create_info{};
+    create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+
+    create_info.queueCreateInfoCount = 1;
+    create_info.pQueueCreateInfos = &queue_create_info;
+
+    create_info.pEnabledFeatures = &physical_device_features;
+
+    create_info.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
+    create_info.ppEnabledExtensionNames = deviceExtensions.data();
+
+    create_info.enabledLayerCount = 0;
+    
+    if (vkCreateDevice(physical_device, &create_info, nullptr, &device) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create logical device");
+    }
+
+    vkGetDeviceQueue(device, queue_family_index, 0, &compute_queue);
+}   
+
+void pick_compute_physical_device(VkInstance instance, VkPhysicalDevice& physical_device)
+{
+    uint32_t device_count = 0;
+
+    vkEnumeratePhysicalDevices(instance, &device_count, nullptr);
+
+    if (device_count == 0)
+    {
+        throw std::runtime_error("no gpu found with vulkan support");
+    }
+
+    std::vector<VkPhysicalDevice> devices(device_count);
+
+    vkEnumeratePhysicalDevices(instance, &device_count, devices.data());
+
+    for (const auto& device: devices)
+    {
+        if (is_compute_ready(device))
+        {
+            physical_device = device;
+            break;
+        }
+    }
+
+    if (physical_device == VK_NULL_HANDLE)
+    {
+        throw std::runtime_error("could not find suitable GPU");
+    }
+}

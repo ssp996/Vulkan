@@ -1,14 +1,5 @@
 #include "vulkan_utils_testing.hpp"
 
-//validation layers
-const std::vector<const char*> validationLayers = {
-    "VK_LAYER_KHRONOS_validation"
-}; 
-
-const std::vector<const char*> deviceExtensions = {
-    VK_KHR_SWAPCHAIN_EXTENSION_NAME
-};
-
 //struct to hold indices of graphics queue and present queue families (presentation isn't really a queue operation but more like OS related)
 struct QueueFamilyIndices 
 {
@@ -537,7 +528,7 @@ void create_logical_device(VkPhysicalDevice physical_device, VkDevice& device, V
     //creating the actual logical device using create_info that was populated above
     if (vkCreateDevice(physical_device, &create_info, nullptr, &device) != VK_SUCCESS) 
     {
-        throw std::runtime_error("failed to create logical device!");
+        throw std::runtime_error("failed to create logical device");
     }  
     
     //gets memory handles to queues 
