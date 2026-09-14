@@ -1,13 +1,14 @@
 #include "vulkan_compute.hpp"
 
-void create_compute_pipeline(const std::string& shader_filepath, VkPipelineLayout& pipeline_layout, VkPipeline& compute_pipeline, const std::vector<VkDescriptorSetLayout>& descriptor_set_layouts, VkDevice device)
+void create_compute_pipeline(const std::string& shader_filepath, VkPipelineLayout& pipeline_layout, VkPipeline& compute_pipeline, const std::vector<VkDescriptorSetLayout>& descriptor_set_layouts, VkDevice device, const std::vector<VkPushConstantRange>& push_constant_ranges)
 {
     std::vector<char> shader_code = readFile(shader_filepath);
     VkShaderModule compute_shader_module = createShaderModule(shader_code, device);
 
     VkPipelineLayoutCreateInfo pipeline_layout_create_info{};
     pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipeline_layout_create_info.pushConstantRangeCount = 0;
+    pipeline_layout_create_info.pushConstantRangeCount = static_cast<uint32_t>(push_constant_ranges.size());
+    pipeline_layout_create_info.pPushConstantRanges = push_constant_ranges.data();
     pipeline_layout_create_info.setLayoutCount = static_cast<uint32_t>(descriptor_set_layouts.size());
     pipeline_layout_create_info.pSetLayouts = descriptor_set_layouts.data();
 
@@ -61,10 +62,8 @@ int is_compute_ready(VkPhysicalDevice physical_device)
     {
         return -1;
     }
-    else if (queue_family_index.has_value())
-    {
-        return queue_family_index.value();
-    }
+    
+    return queue_family_index.value();
 }
 
 void create_compute_device(VkPhysicalDevice physical_device, VkDevice& device, VkQueue& compute_queue)

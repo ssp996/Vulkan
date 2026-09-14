@@ -247,3 +247,48 @@ void create_ubo_descriptor_sets(uint32_t n, VkDescriptorSetLayout descriptor_set
 void create_custom_descriptor_pool(const std::vector<VkDescriptorType>& descriptor_types, const std::vector<uint32_t>& descriptor_counts, uint32_t max_sets,  VkDescriptorPool& descriptor_pool, VkDevice device);
 
 void create_g_buffer_descriptor_sets(VkDescriptorSetLayout g_buffer_layout, uint32_t swap_chain_size, VkDescriptorPool descriptor_pool, std::vector<VkDescriptorSet>& descriptor_sets, VkDevice device, const std::vector<VkImageView>& depth_views, const std::vector<VkImageView>& normal_views, const std::vector<VkImageView>& albedo_views, uint32_t depth_binding, uint32_t normal_binding, uint32_t albedo_binding);
+
+template <typename... PushConstantTypes>
+std::vector<VkPushConstantRange> get_push_constant_ranges(const std::vector<VkShaderStageFlagBits>& stage_flags)
+{
+    if ((sizeof(PushConstantTypes) + ... + 0) >= 128)
+    {
+        std::cout << "Warning: size of push constants exceeds 128 bytes. May not work on all GPUs";
+    }
+
+    if (stage_flags.size() != sizeof...(PushConstantTypes))
+    {
+        throw std::runtime_error("mismatch between number of push constant types and usage flags");
+    }
+
+    std::vector<size_t> push_constant_sizes = {sizeof(PushConstantTypes)...};
+
+    std::vector<VkPushConstantRange> push_constant_ranges;
+
+    uint32_t offset_sum = 0;
+    int i = 0;
+
+    for (size_t size: push_constant_sizes)
+    {
+        //vulkan needs offsets to be multiples of 4
+        if (size % 4 != 0)
+        {
+            throw std::runtime_error("push constant size must be a multiple of 4 bytes");
+        }
+
+        VkPushConstantRange push_constant{};
+
+        uint32_t uint_size = static_cast<uint32_t>(size);
+
+        push_constant.offset = offset_sum;
+        push_constant.size = uint_size;
+        push_constant.stageFlags = stage_flags[i];
+
+        push_constant_ranges.push_back(push_constant);
+
+        offset_sum += uint_size;
+        i++;
+    }
+
+    return push_constant_ranges;
+}   
