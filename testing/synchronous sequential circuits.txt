@@ -1,0 +1,118 @@
+system call categories:
+1) process control 
+2) file manipulation 
+3) Device manipulation
+4) information maintenance 
+5) Communication
+6) protection 
+
+
+process control block - custom data structure used by os to hold details about a process
+process state - running/waiting/terminated
+program counter - address of next instruction in memory
+cpu registers - contents of process related registers
+cpu scheduling info - priorities, scheduling queue pointers
+memory management info - memory allocated to process
+accounting info - resources being used by process, such as CPU used, clock time elapsed since process, time limits etc
+I/O status info, i/o devices allocated to process, list of open files etc
+
+process table contains a list of process with their pids against their corresponding process control blocks
+pid is a unique numerical identifier for a process
+
+scheduling queues:
+- job queue: all processes in the system
+- ready queue: all process ready to execute
+- device queue: all process waiting for i/o device
+processes may migrate between those queues depending on their execution
+
+i/o bound process - more time waiting for i/o, many short cpu bursts
+cpu bound process - more time doing computation, few long cpu bursts
+
+short term scheduler (cpu scheduler) - selects which process should be executed next from ready queue and allocates cpu. Must be fast as is invoked every few ms. Sometimes is the only scheduler in a system. the ready queue may be fifo, priority queue, tree, unordered linked list etc, the records in the queue are the pcbs of the processes
+
+long term scheduler (job scheduler) - selects process which processes have to be moved into the ready queue, not invoked frequently, controls the degree of multiprogramming
+
+medium term scheduler - can be added if degree of multiprogramming needs to be reduced, moves processes between memory and disk as needed
+
+context switch:
+when a cpu needs to switch to another process it performs what is known as a context switch where the current process's details or context is stored in a process control block. The context of the new process to be executed is loaded from its process control block.
+context switch is a time overhead, no useful work is done while context switching, the time taken to context switch scales with the complexity of the os and the pcb. the time is also dependent on how fast the actual cpu is (hardware support). Some hardware provides multiple sets of registers per cpu, so multiple contexts can be loaded at once to make switching faster.
+
+
+resource allocation between parent and child processes:
+- parent and child can share all resources
+- child may have access to a subset of parent's resources
+- parent and child may have own independent resources, sharing no resources
+they can execute concurrently, or parent can wait until child terminates
+
+(on unix)
+fork() - creates child process, returns pid
+execlp(const char* file, const char* arg0, const char* arg1,... const char* argn) - executes file with flags arg0 through arg n (arg n must always be a null pointer to say argument list ended)
+wait(int* stat_loc) - waits for process to finish (argument is status code, if u dont care, pass NULL)
+
+on child exit()ing, os deallocates its resources, parent may abort() the child if it exceeds allocated resources, or is no longer required, os doesn't allow a child process to continue executing if parent terminates
+
+if no parent invokes wait() for a child to finish, the child process is termed a zombie process,
+if a parent terminates without invoking wait(), the child process is termed an orphan
+
+non preemptive scheduling: 
+a scheduling decision has to be made when: 
+1) a process switches from running to waiting
+2) a process switches from running to ready
+3) a process switches from waiting to ready
+4) a process terminates
+
+preemptive kernels are vulnerable to race conditions, require mutex locks to mitigate
+
+dispatcher - gives control of cpu to process which needs to be executed
+dispatching involves:
+1) switching context
+2) changing to user mode
+3) jumping to location of user program to start process
+
+the dispatcher takes some time to stop one process and start another (dispatch latency)
+
+goals of a cpu scheduler:
+maximize cpu utilisation
+maximize throughput
+minimize turnaround time
+minimize waiting time
+minimize response time
+
+fcfs - first come first serve
+average waiting time generally high, may vary substantially depending on burst times variation
+convoy effect - short processes behind long process
+fcfs algorithm is non preemptive, once cpu is allocated to a process, the process executes till completion
+hence is troublesome for time sharing systems, where quick response time is required.
+
+sjf - shortest job first
+minimal average waiting time, jobs are queued according to a computed approximation of cpu burst lengths
+preemptive sjf is called srtf (shorted remaining time first), where jobs are queued according to how much cpu time they have left
+
+example: 
+suppose p1 with burst time 8 begins executing at t = 0, if a process p2 with executing time 4 (less than burst time of p1), p1 gets preempted with and p2 begins
+
+
+inter process communication:
+paradigm - producer consumer, one process produces data, other one consumes it
+shared memory - synchronised using some primitives like mutex locks or semaphores, communication completely under control of user programs, no OS intervention
+message passing - some communication link(s) are set up between 2 or more communicating process
+
+
+thread or invocation is a fundamental unit of cpu utilisation
+creation of threads is cheaper than creation of processes, thread switching has less overhead than process switching
+threads can run on multiple cores parallelly
+each thread has:
+- thread id
+- set of registers
+- stack
+- scheduling priority/policy
+- program counter
+- signal mask
+- thread specific data
+
+
+to run tasks parallelly on multicore systems:
+it must be identified that the tasks are independent on each other so they can safely be run parallelly
+it must be ensured that the tasks perform equal work of equal value
+when one task requires data from another, it must be ensured that the execution of the tasks is synchronized in a way to prevent data dependencies

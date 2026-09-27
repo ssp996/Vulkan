@@ -63,12 +63,11 @@ int main()
         VkPipeline geometry_pipeline;
         VkPipeline lighting_pipeline;
 
-
         VkDescriptorSetLayout ubo_descriptor_layout;
-        create_custom_descriptor_set_layout(device, ubo_descriptor_layout, {0}, {1}, {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER}, {nullptr}, {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT});
+        create_custom_descriptor_set_layout(device, ubo_descriptor_layout, {0, 1}, {1, 1}, {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER}, {nullptr, nullptr}, {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT});
 
         VkDescriptorSetLayout g_buffer_descriptor_layout;
-        create_custom_descriptor_set_layout(device, g_buffer_descriptor_layout, {0, 1, 2}, {1, 1, 1}, {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT}, {nullptr, nullptr, nullptr}, {VK_SHADER_STAGE_FRAGMENT_BIT, VK_SHADER_STAGE_FRAGMENT_BIT, VK_SHADER_STAGE_FRAGMENT_BIT});
+        create_custom_descriptor_set_layout(device, g_buffer_descriptor_layout, {0, 2, 3}, {1, 1, 1}, {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT}, {nullptr, nullptr, nullptr}, {VK_SHADER_STAGE_FRAGMENT_BIT, VK_SHADER_STAGE_FRAGMENT_BIT, VK_SHADER_STAGE_FRAGMENT_BIT});
 
         std::vector<VkDescriptorSetLayout> descriptor_set_layouts = {ubo_descriptor_layout, g_buffer_descriptor_layout};
 
@@ -85,6 +84,14 @@ int main()
             descriptor_set_layouts
         );
 
+        std::vector<VkImage> shadow_map_images(swap_chain_images.size());
+        std::vector<VkDeviceMemory> shadow_map_memories(swap_chain_images.size());
+        std::vector<VkImageView> shadow_map_views(swap_chain_images.size());
+
+        VkExtent2D shadow_map_extent{};
+        shadow_map_extent.height = 1024;
+        shadow_map_extent.width = 1024;
+
         std::vector<VkImage> depth_images(swap_chain_images.size());
         std::vector<VkDeviceMemory> depth_image_memories(swap_chain_images.size());
         std::vector<VkImageView> depth_image_views(swap_chain_images.size());
@@ -98,7 +105,10 @@ int main()
         std::vector<VkImageView> albedo_views(swap_chain_images.size());
 
         for (size_t i = 0; i < swap_chain_images.size(); i++)
-        {
+        {   
+            create_image(device, physical_device, shadow_map_extent.width, shadow_map_extent.height, VK_FORMAT_D32_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, shadow_map_images[i], shadow_map_memories[i], VK_SAMPLE_COUNT_1_BIT, VK_SHARING_MODE_EXCLUSIVE);
+            shadow_map_views[i] = create_image_view(device, shadow_map_images[i], VK_FORMAT_D32_SFLOAT, VK_IMAGE_ASPECT_DEPTH_BIT);
+
             create_image(device, physical_device, swap_chain_extent.width, swap_chain_extent.height, depth_format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depth_images[i], depth_image_memories[i], VK_SAMPLE_COUNT_1_BIT, VK_SHARING_MODE_EXCLUSIVE);
             depth_image_views[i] = create_image_view(device, depth_images[i], depth_format, VK_IMAGE_ASPECT_DEPTH_BIT);
 
@@ -108,20 +118,19 @@ int main()
             create_image(device, physical_device, swap_chain_extent.width, swap_chain_extent.height, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, albedo_images[i], albedo_memories[i], VK_SAMPLE_COUNT_1_BIT, VK_SHARING_MODE_EXCLUSIVE);
             albedo_views[i] = create_image_view(device, albedo_images[i], VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
         }
-        
+
         std::vector<VkFramebuffer> swap_chain_frame_buffers;
-        VkFramebuffer frame_buffer;
-        create_frame_buffers(
-            swap_chain_frame_buffers, 
-            swap_chain_image_views,
-            render_pass,
-            swap_chain_extent,
-            device,
-            depth_image_views,
-            true,
-            &normal_views,
-            &albedo_views
-        );
+        swap_chain_frame_buffers.resize(swap_chain_images.size());
+
+        std::vector<VkFramebuffer> shadow_map_frame_buffers;
+        shadow_map_frame_buffers.resize(swap_chain_images.size());
+        
+        for (int i = 0; i < swap_chain_images.size(); i++)
+        {
+            create_frame_buffer(swap_chain_frame_buffers[i], render_pass, swap_chain_extent, device, {swap_chain_image_views[i], depth_image_views[i], normal_views[i], albedo_views[i]});
+            create_frame_buffer(shadow_map_frame_buffers[i], render_pass, shadow_map_extent, device, {shadow_map_views[i]}); 
+        }
+
 
         VkCommandPool command_pool;
         create_command_pool(physical_device, device, surface, command_pool);
@@ -215,15 +224,26 @@ int main()
 
         create_uniform_buffer(device, physical_device, uniform_buffers, uniform_buffers_memory, uniform_buffers_mapped, MAX_FRAMES_IN_FLIGHT);
 
+        std::vector<VkBuffer> light_uniform_buffers;
+        std::vector<VkDeviceMemory> light_uniform_buffers_memory;
+        std::vector<void*> light_uniform_buffers_mapped;
+
+        create_uniform_buffer(device, physical_device, light_uniform_buffers, light_uniform_buffers_memory, light_uniform_buffers_mapped, MAX_FRAMES_IN_FLIGHT);
+
         VkDescriptorPool descriptor_pool{};
         create_custom_descriptor_pool({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT}, {MAX_FRAMES_IN_FLIGHT, static_cast<uint32_t>(swap_chain_images.size() * 3)}, static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT + swap_chain_images.size()), descriptor_pool, device);
         
         std::vector<VkDescriptorSet> ubo_descriptor_sets;
+        std::vector<VkDescriptorSet> light_descriptor_sets;
         
         const std::vector<uint32_t> ubo_offsets(MAX_FRAMES_IN_FLIGHT, 0);
         const std::vector<uint32_t> ubo_bindings(MAX_FRAMES_IN_FLIGHT, 0);
 
+        const std::vector<uint32_t> light_ubo_offsets(MAX_FRAMES_IN_FLIGHT, 1);
+        const std::vector<uint32_t> light_ubo_bindings(MAX_FRAMES_IN_FLIGHT, 0);
+
         create_ubo_descriptor_sets<UniformBufferObject>(MAX_FRAMES_IN_FLIGHT, ubo_descriptor_layout, descriptor_pool, ubo_descriptor_sets, device, uniform_buffers, ubo_offsets, ubo_bindings);
+        create_ubo_descriptor_sets<UniformBufferObject>(MAX_FRAMES_IN_FLIGHT, ubo_descriptor_layout, descriptor_pool, light_descriptor_sets, device, light_uniform_buffers, light_ubo_offsets, light_ubo_bindings);
 
         std::vector<VkDescriptorSet> g_buffer_descriptor_sets;
 
@@ -280,21 +300,36 @@ int main()
             cube_model = glm::rotate(cube_model, glm::radians(30.0f), glm::vec3(1.0f, 0.0f, 0.0f));
             render_objects[0].push_constants.model = cube_model;
 
-            /* glm::vec3 camera_pos = glm::vec3(0.0f, 5.0f, 0.0f);
+            glm::vec3 camera_pos = glm::vec3(0.0f, 5.0f, 0.0f);
             glm::vec3 camera_lookat = glm::vec3(0.0f, 0.0f, 0.0f);
             glm::vec3 camera_up = glm::vec3(0.0f, 1.0f, 0.0f);
 
-            glm::vec3 right = glm::normalize(glm::cross(camera_lookat, camera_up)); */
+            glm::vec3 right = glm::normalize(glm::cross(camera_lookat, camera_up));
 
             glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 1.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+            glm::vec3 light_dir = glm::vec3(0.0f, -1.0f, 1.0f);
 
             glm::mat4 proj = glm::perspective(glm::radians(45.0f), (float)swap_chain_extent.width / (float)swap_chain_extent.height, 0.1f, 10.0f);
             proj[1][1] *= -1;
             ubo.vp = proj * view;
-            ubo.light_dir = glm::vec3(0.0f, -1.0f, 1.0f);
+            ubo.light_dir = light_dir;
+            
+            glm::vec3 scene_origin = glm::vec3(0.0f, 0.0f, 0.0f);
+            glm::vec3 light_pos = scene_origin - (light_dir * 50.0f);
+
+            glm::mat4 light_view = glm::lookAt(light_pos, scene_origin, camera_up);
+
+            glm::mat4 light_proj;
+
+            create_light_projection_matrix(light_proj, view, 50.0f, glm::radians(45.0f), (float)swap_chain_extent.width / (float)swap_chain_extent.height, 0.1f);
+
+            UniformBufferObject light_ubo{};
+            light_ubo.vp = light_proj * light_view;
+            light_ubo.light_dir = light_dir;
 
             memcpy(uniform_buffers_mapped[current_frame], &ubo, sizeof(ubo));
-
+            memcpy(light_uniform_buffers_mapped[current_frame], &light_ubo, sizeof(light_ubo));
 
             draw_frame(
                 current_frame,

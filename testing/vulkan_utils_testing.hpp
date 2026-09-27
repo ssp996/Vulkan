@@ -13,7 +13,8 @@
 #include <fstream>
 #include <cstddef>
 #include <format>
-#include "glm/glm.hpp"
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 
 #ifdef NDEBUG 
@@ -62,6 +63,7 @@ struct RenderObject
     VkDeviceMemory vertex_buffer_memory;
     VkDeviceMemory index_buffer_memory;
 };
+
 
 QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface, bool compute=false); 
 
@@ -125,7 +127,7 @@ void create_descriptor_sets(VkDevice device, VkDescriptorSetLayout descriptor_se
 
 void create_graphics_pipeline(const std::string vertex_shader_filepath, const std::string fragment_shader_filepath, VkDevice device, VkPipelineLayout& pipeline_layout, VkRenderPass render_pass, VkPipeline& graphics_pipeline, VkDescriptorSetLayout& descriptor_set_layout);
 
-void create_frame_buffers(std::vector<VkFramebuffer>& swap_chain_frame_buffers, std::vector<VkImageView> swap_chain_image_views, VkRenderPass render_pass, VkExtent2D swap_chain_extent, VkDevice device, const std::vector<VkImageView>& depth_image_views, bool deferred = false, const std::vector<VkImageView>* normal_views = nullptr, const std::vector<VkImageView>* albedo_views = nullptr);
+void create_deferred_frame_buffers(std::vector<VkFramebuffer>& swap_chain_frame_buffers, std::vector<VkImageView> swap_chain_image_views, VkRenderPass render_pass, VkExtent2D swap_chain_extent, VkDevice device, const std::vector<VkImageView>& depth_image_views, bool deferred = false, const std::vector<VkImageView>* normal_views = nullptr, const std::vector<VkImageView>* albedo_views = nullptr);
 
 void create_command_pool(VkPhysicalDevice physical_device, VkDevice device, VkSurfaceKHR surface, VkCommandPool& command_pool);
 
@@ -292,3 +294,7 @@ std::vector<VkPushConstantRange> get_push_constant_ranges(const std::vector<VkSh
 
     return push_constant_ranges;
 }   
+
+void create_frame_buffers(std::vector<std::vector<VkFramebuffer>>& frame_buffers_vector, std::vector<std::vector<VkImageView>>& image_views_vector, VkRenderPass render_pass, const std::vector<VkExtent2D>& extents, VkDevice device, const std::vector<std::vector<std::vector<VkImageView>>>& attachments_vector);
+void create_frame_buffer(VkFramebuffer& frame_buffer, VkRenderPass render_pass, VkExtent2D extent, VkDevice device, const std::vector<VkImageView> attachments);
+void create_light_projection_matrix(glm::mat4& lightProj, glm::mat4& cameraView, float shadowDistance, float cameraFOV, float aspectRatio, float cameraNear);

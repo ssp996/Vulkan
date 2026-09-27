@@ -646,7 +646,7 @@ void create_render_pass(VkFormat swap_chain_color_format, VkDevice device, VkRen
     color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
     VkAttachmentReference color_attachment_ref{};
-    //important: this is the out color in the fragment shader (like in opengl when you say layou(location = 0) out vec4 outColor;, that location = 0 is the color_attachment_reference.attachment)
+    //important: this is the out color in the fragment shader (like in opengl when you say layout(location = 0) out vec4 outColor;, that location = 0 is the color_attachment_reference.attachment)
     color_attachment_ref.attachment = 0;
     color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
@@ -1045,7 +1045,7 @@ void create_graphics_pipeline(const std::string vertex_shader_filepath, const st
 }
 
 
-void create_frame_buffers(std::vector<VkFramebuffer>& swap_chain_frame_buffers, std::vector<VkImageView> swap_chain_image_views, VkRenderPass render_pass, VkExtent2D swap_chain_extent, VkDevice device, const std::vector<VkImageView>& depth_image_views, bool deferred, const std::vector<VkImageView>* normal_views, const std::vector<VkImageView>* albedo_views)
+void create_deferred_frame_buffers(std::vector<VkFramebuffer>& swap_chain_frame_buffers, std::vector<VkImageView> swap_chain_image_views, VkRenderPass render_pass, VkExtent2D swap_chain_extent, VkDevice device, const std::vector<VkImageView>& depth_image_views, bool deferred, const std::vector<VkImageView>* normal_views, const std::vector<VkImageView>* albedo_views)
 {
     swap_chain_frame_buffers.resize(swap_chain_image_views.size());
 
@@ -1485,6 +1485,7 @@ void create_deferred_render_pass(VkFormat swap_chain_color_format, VkSampleCount
     subpass_1.pInputAttachments = subpass_1_input_refs.data();
     subpass_1.colorAttachmentCount = 1;
     subpass_1.pColorAttachments = &swapchain_ref;
+    
 
     std::vector<VkSubpassDescription> subpasses = {subpass_0, subpass_1};
 
@@ -2044,5 +2045,292 @@ void create_g_buffer_descriptor_sets(VkDescriptorSetLayout g_buffer_layout, uint
     }
 }
 
+//create frame buffers for a render pass       
+                        //vector of vector of frame buffers (inner vector because like what if triple buffered or something) same with image views                            //extent for each vector of frame buffers                //innermost vector contains attachments for framebuffer[i][j]                                                                                                                                                                                                                                                                                                                 
+void create_frame_buffers(std::vector<std::vector<VkFramebuffer>>& frame_buffers_vector, std::vector<std::vector<VkImageView>>& image_views_vector, VkRenderPass render_pass, const std::vector<VkExtent2D>& extents, VkDevice device, const std::vector<std::vector<std::vector<VkImageView>>>& attachments_vector)
+{
+    int i = 0;
+    for (auto& frame_buffers : frame_buffers_vector)
+    {
+        frame_buffers.resize(image_views_vector[i].size());
+
+        for (size_t j = 0; j < image_views_vector[i].size(); j++)
+        {
+            std::vector<VkImageView> attachments = attachments_vector[i][j];
+    
+            VkFramebufferCreateInfo frame_buffer_create_info{};
+
+            frame_buffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            frame_buffer_create_info.renderPass = render_pass;
+            frame_buffer_create_info.attachmentCount = static_cast<uint32_t>(attachments.size());
+            frame_buffer_create_info.pAttachments = (attachments.size() > 0) ? attachments.data() : nullptr;
+            frame_buffer_create_info.width = extents[i].width;
+            frame_buffer_create_info.height = extents[i].height;
+            frame_buffer_create_info.layers = 1;
+
+            if (vkCreateFramebuffer(device, &frame_buffer_create_info, nullptr, &frame_buffers[j]) != VK_SUCCESS)
+            {
+                throw std::runtime_error(std::format("failed to create frame buffer {},{}", i, j));
+            }
+        }
+        i++;
+    }
+}
 
 
+void create_frame_buffer(VkFramebuffer& frame_buffer, VkRenderPass render_pass, VkExtent2D extent, VkDevice device, const std::vector<VkImageView> attachments)
+{
+    VkFramebufferCreateInfo frame_buffer_create_info{};
+    frame_buffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    frame_buffer_create_info.renderPass = render_pass;
+    frame_buffer_create_info.attachmentCount = static_cast<uint32_t>(attachments.size());
+    frame_buffer_create_info.pAttachments = (attachments.size() > 0) ? attachments.data() : nullptr;
+    frame_buffer_create_info.width = extent.width;
+    frame_buffer_create_info.height = extent.height;
+    frame_buffer_create_info.layers = 1;
+
+    if (vkCreateFramebuffer(device, &frame_buffer_create_info, nullptr, &frame_buffer) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create frame buffer");
+    }
+}
+
+void create_light_projection_matrix(glm::mat4& lightProj, glm::mat4& cameraView, float shadowDistance, float cameraFOV, float aspectRatio, float cameraNear)
+{
+    float shadowDistance = 50.0f;
+    glm::mat4 shadowCamProj = glm::perspective(cameraFOV, aspectRatio, cameraNear, shadowDistance);
+    
+    glm::mat4 invCam = glm::inverse(shadowCamProj * cameraView);
+
+    std::vector<glm::vec4> ndcCorners = {
+        {-1.0f, -1.0f, 0.0f, 1.0f}, { 1.0f, -1.0f, 0.0f, 1.0f}, 
+        { 1.0f,  1.0f, 0.0f, 1.0f}, {-1.0f,  1.0f, 0.0f, 1.0f},
+        {-1.0f, -1.0f, 1.0f, 1.0f}, { 1.0f, -1.0f, 1.0f, 1.0f}, 
+        { 1.0f,  1.0f, 1.0f, 1.0f}, {-1.0f,  1.0f, 1.0f, 1.0f}
+    };
+
+    std::vector<glm::vec3> worldCorners;
+    glm::vec3 frustumCenter = glm::vec3(0.0f);
+
+    for (const auto& corner : ndcCorners) 
+    {
+        glm::vec4 worldPt = invCam * corner;
+        worldPt /= worldPt.w; 
+        
+        worldCorners.push_back(glm::vec3(worldPt));
+        frustumCenter += glm::vec3(worldPt);
+    }
+    frustumCenter /= 8.0f;
+
+    glm::vec3 lightDir = glm::normalize(glm::vec3(-1.0f, -1.0f, -0.5f));
+    glm::mat4 lightView = glm::lookAt(frustumCenter, frustumCenter + lightDir, glm::vec3(0.0f, 1.0f, 0.0f));
+
+    float minX = std::numeric_limits<float>::max();
+    float maxX = std::numeric_limits<float>::lowest();
+    float minY = std::numeric_limits<float>::max();
+    float maxY = std::numeric_limits<float>::lowest();
+    float minZ = std::numeric_limits<float>::max();
+    float maxZ = std::numeric_limits<float>::lowest();
+
+    for (const auto& pt : worldCorners) 
+    {
+        glm::vec4 lightSpacePt = lightView * glm::vec4(pt, 1.0f);
+        
+        minX = std::min(minX, lightSpacePt.x);
+        maxX = std::max(maxX, lightSpacePt.x);
+        minY = std::min(minY, lightSpacePt.y);
+        maxY = std::max(maxY, lightSpacePt.y);
+        minZ = std::min(minZ, lightSpacePt.z);
+        maxZ = std::max(maxZ, lightSpacePt.z);
+    }
+
+    float zPushback = 50.0f;
+    if (minZ < 0) 
+    {
+        minZ += zPushback;
+    } 
+    else 
+    {
+        minZ -= zPushback;
+    }
+
+    lightProj = glm::ortho(minX, maxX, minY, maxY, minZ, maxZ);
+
+    lightProj[1][1] *= -1.0f;
+}
+
+void create_shadow_pass(VkDevice device, VkRenderPass& render_pass)
+{
+    VkAttachmentDescription depth_attachment{};
+    depth_attachment.format = VK_FORMAT_D32_SFLOAT;
+    depth_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depth_attachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+
+    std::vector<VkAttachmentDescription> attachments = {depth_attachment};
+
+    VkAttachmentReference depth_ref{};
+    depth_ref.attachment = 0;
+    depth_ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription depth_subpass{};
+    depth_subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    depth_subpass.pDepthStencilAttachment = &depth_ref;
+
+    std::vector<VkSubpassDescription> subpasses = {depth_subpass};
+    
+    VkSubpassDependency dep_0{};
+    dep_0.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dep_0.dstSubpass = 0;
+
+    dep_0.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    dep_0.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+
+    dep_0.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    dep_0.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+    VkSubpassDependency dep_1{};
+    dep_1.srcSubpass = 0;
+    dep_1.dstSubpass = VK_SUBPASS_EXTERNAL;
+
+    dep_1.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    dep_1.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+
+    dep_1.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    dep_1.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+    std::vector<VkSubpassDependency> dependencies = {dep_0, dep_1};
+
+    VkRenderPassCreateInfo render_pass_info{};
+    render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    render_pass_info.attachmentCount = static_cast<uint32_t>(attachments.size());
+    render_pass_info.pAttachments = attachments.data();
+    render_pass_info.subpassCount = static_cast<uint32_t>(subpasses.size());
+    render_pass_info.pSubpasses = subpasses.data();
+    render_pass_info.dependencyCount = static_cast<uint32_t>(dependencies.size());
+    render_pass_info.pDependencies = dependencies.data();
+
+    if (vkCreateRenderPass(device, &render_pass_info, nullptr, &render_pass) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create render pass");
+    }
+}
+
+void create_shadow_pipeline(const std::string& vert_filepath, VkDevice device, size_t push_constant_size, const std::vector<VkDescriptorSetLayout>& descriptor_set_layouts, VkPipelineLayout& pipeline_layout, VkRenderPass render_pass, VkPipeline& pipeline)
+{
+    std::vector<char> vert_code = readFile(vert_filepath);
+
+    VkShaderModule vert_module = createShaderModule(vert_code, device);
+
+    VkPipelineViewportStateCreateInfo viewport_state{};
+    viewport_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewport_state.viewportCount = 1;
+    viewport_state.scissorCount = 1;
+
+    VkPipelineRasterizationStateCreateInfo rasterizer{};
+    rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterizer.depthClampEnable = VK_FALSE;
+    rasterizer.rasterizerDiscardEnable = VK_FALSE;
+    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizer.lineWidth = 1.0f;
+
+    rasterizer.cullMode = VK_CULL_MODE_FRONT_BIT; 
+    rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE; 
+
+    rasterizer.depthBiasEnable = VK_TRUE;
+    rasterizer.depthBiasConstantFactor = 1.25f; 
+    rasterizer.depthBiasSlopeFactor = 1.75f;    
+    rasterizer.depthBiasClamp = 0.0f;
+
+    VkPipelineMultisampleStateCreateInfo multisampling{};
+    multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    std::vector<VkDynamicState> dynamic_states = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_DEPTH_BIAS};
+    VkPipelineDynamicStateCreateInfo dynamic_state{};
+    dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamic_state.dynamicStateCount = static_cast<uint32_t>(dynamic_states.size());
+    dynamic_state.pDynamicStates = dynamic_states.data();
+
+    VkPushConstantRange push_constant{};
+    push_constant.offset = 0;
+    push_constant.size = push_constant_size;
+    push_constant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    VkPipelineLayoutCreateInfo pipeline_layout_info{};
+    pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipeline_layout_info.setLayoutCount = 2;
+    pipeline_layout_info.pSetLayouts = descriptor_set_layouts.data();
+    pipeline_layout_info.pushConstantRangeCount = 1;
+    pipeline_layout_info.pPushConstantRanges = &push_constant;
+
+    if (vkCreatePipelineLayout(device, &pipeline_layout_info, nullptr, &pipeline_layout) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create pipeline layout");
+    }
+
+    VkPipelineShaderStageCreateInfo geom_stages[] = {
+        {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0, VK_SHADER_STAGE_VERTEX_BIT, vert_module, "main", nullptr}
+    };
+
+    VkVertexInputBindingDescription binding_desc{};
+    binding_desc.binding = 0;
+    binding_desc.stride = sizeof(Vertex);
+    binding_desc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    VkVertexInputAttributeDescription attributeDescription{};
+    attributeDescription.binding = 0;
+    attributeDescription.location = 0; 
+    attributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT; 
+    attributeDescription.offset = offsetof(Vertex, position);
+
+    VkPipelineVertexInputStateCreateInfo vertex_input{};
+    vertex_input.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertex_input.vertexBindingDescriptionCount = 1;
+    vertex_input.pVertexBindingDescriptions = &binding_desc;
+    vertex_input.vertexAttributeDescriptionCount = 1;
+    vertex_input.pVertexAttributeDescriptions = &attributeDescription;
+
+    VkPipelineInputAssemblyStateCreateInfo input_assembly{};
+    input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST; 
+
+    VkPipelineDepthStencilStateCreateInfo depth_stencil_create_info{};
+    depth_stencil_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depth_stencil_create_info.depthTestEnable = VK_TRUE;           
+    depth_stencil_create_info.depthWriteEnable = VK_TRUE;          
+    depth_stencil_create_info.depthCompareOp = VK_COMPARE_OP_LESS;
+
+    VkPipelineColorBlendStateCreateInfo colorBlending{};
+    colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    colorBlending.logicOpEnable = VK_FALSE;
+    colorBlending.logicOp = VK_LOGIC_OP_COPY;
+    colorBlending.attachmentCount = 0; 
+    colorBlending.pAttachments = nullptr;
+
+    VkGraphicsPipelineCreateInfo geom_pipeline_info{};
+    geom_pipeline_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    geom_pipeline_info.stageCount = 2;
+    geom_pipeline_info.pStages = geom_stages;
+    geom_pipeline_info.pVertexInputState = &vertex_input;
+    geom_pipeline_info.pInputAssemblyState = &input_assembly;
+    geom_pipeline_info.pViewportState = &viewport_state;
+    geom_pipeline_info.pRasterizationState = &rasterizer;
+    geom_pipeline_info.pMultisampleState = &multisampling;
+    geom_pipeline_info.pDepthStencilState = &depth_stencil_create_info;
+    geom_pipeline_info.pColorBlendState = &colorBlending;
+    geom_pipeline_info.pDynamicState = &dynamic_state;
+    geom_pipeline_info.layout = pipeline_layout;
+    geom_pipeline_info.renderPass = render_pass;
+    geom_pipeline_info.subpass = 0; 
+
+    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &geom_pipeline_info, nullptr, &pipeline) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create geometry pipeline");
+    }
+
+    vkDestroyShaderModule(device, vert_module, nullptr);
+}
