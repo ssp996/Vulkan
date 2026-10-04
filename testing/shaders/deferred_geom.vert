@@ -10,16 +10,18 @@ layout(location = 1) out vec3 fragNormal;
 layout(set = 0, binding = 0) uniform uniform_buffer_object{
     mat4 vp;
     vec3 light_dir; 
+    mat4 filler;
+    vec3 filler2;
 }ubo;
 
 layout(push_constant) uniform PushConstants{
     mat4 model;
-    vec3 color;
+    mat4 light_view_proj;
 }pc;
 
 void main()
 {
     gl_Position = ubo.vp * pc.model * vec4(inPosition, 1.0);
-    fragColor = inColor * pc.color;
+    fragColor = inColor;
     fragNormal = mat3(pc.model) * inNormal;
 }

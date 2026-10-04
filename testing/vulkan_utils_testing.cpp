@@ -1232,6 +1232,7 @@ void draw_frame(uint32_t current_frame, VkDevice device, std::vector<VkFence>& i
         throw std::runtime_error("failed to submit draw command buffer");
     }
 
+
     VkPresentInfoKHR present_info{};
     present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     present_info.waitSemaphoreCount = 1;
@@ -1726,7 +1727,7 @@ void create_deferred_pipelines(const std::string& geom_vert_filepath, const std:
     //pipeline layout, along with push constants shared between both pipelines
     VkPipelineLayoutCreateInfo pipeline_layout_info{};
     pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipeline_layout_info.setLayoutCount = 2;
+    pipeline_layout_info.setLayoutCount = 3;
     pipeline_layout_info.pSetLayouts = descriptor_set_layouts.data();
     pipeline_layout_info.pushConstantRangeCount = 1;
     pipeline_layout_info.pPushConstantRanges = &push_constant;
@@ -2097,7 +2098,6 @@ void create_frame_buffer(VkFramebuffer& frame_buffer, VkRenderPass render_pass, 
 
 void create_light_projection_matrix(glm::mat4& lightProj, glm::mat4& cameraView, float shadowDistance, float cameraFOV, float aspectRatio, float cameraNear)
 {
-    float shadowDistance = 50.0f;
     glm::mat4 shadowCamProj = glm::perspective(cameraFOV, aspectRatio, cameraNear, shadowDistance);
     
     glm::mat4 invCam = glm::inverse(shadowCamProj * cameraView);
@@ -2221,7 +2221,7 @@ void create_shadow_pass(VkDevice device, VkRenderPass& render_pass)
     }
 }
 
-void create_shadow_pipeline(const std::string& vert_filepath, VkDevice device, size_t push_constant_size, const std::vector<VkDescriptorSetLayout>& descriptor_set_layouts, VkPipelineLayout& pipeline_layout, VkRenderPass render_pass, VkPipeline& pipeline)
+void create_shadow_pipeline(const std::string& vert_filepath, VkDevice device, size_t push_constant_size, VkPipelineLayout& pipeline_layout, VkRenderPass render_pass, VkPipeline& pipeline)
 {
     std::vector<char> vert_code = readFile(vert_filepath);
 
@@ -2264,8 +2264,8 @@ void create_shadow_pipeline(const std::string& vert_filepath, VkDevice device, s
 
     VkPipelineLayoutCreateInfo pipeline_layout_info{};
     pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipeline_layout_info.setLayoutCount = 2;
-    pipeline_layout_info.pSetLayouts = descriptor_set_layouts.data();
+    pipeline_layout_info.setLayoutCount = 0;
+    pipeline_layout_info.pSetLayouts = nullptr;
     pipeline_layout_info.pushConstantRangeCount = 1;
     pipeline_layout_info.pPushConstantRanges = &push_constant;
 
@@ -2273,7 +2273,7 @@ void create_shadow_pipeline(const std::string& vert_filepath, VkDevice device, s
         throw std::runtime_error("failed to create pipeline layout");
     }
 
-    VkPipelineShaderStageCreateInfo geom_stages[] = {
+    VkPipelineShaderStageCreateInfo vert_stage[] = {
         {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0, VK_SHADER_STAGE_VERTEX_BIT, vert_module, "main", nullptr}
     };
 
@@ -2314,8 +2314,8 @@ void create_shadow_pipeline(const std::string& vert_filepath, VkDevice device, s
 
     VkGraphicsPipelineCreateInfo geom_pipeline_info{};
     geom_pipeline_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    geom_pipeline_info.stageCount = 2;
-    geom_pipeline_info.pStages = geom_stages;
+    geom_pipeline_info.stageCount = 1;
+    geom_pipeline_info.pStages = vert_stage;
     geom_pipeline_info.pVertexInputState = &vertex_input;
     geom_pipeline_info.pInputAssemblyState = &input_assembly;
     geom_pipeline_info.pViewportState = &viewport_state;
@@ -2333,4 +2333,438 @@ void create_shadow_pipeline(const std::string& vert_filepath, VkDevice device, s
     }
 
     vkDestroyShaderModule(device, vert_module, nullptr);
+}
+
+void create_shadow_sampler(VkDevice device, VkSampler& sampler)
+{
+    VkSamplerCreateInfo samplerInfo{};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = VK_FILTER_NEAREST;
+    samplerInfo.minFilter = VK_FILTER_NEAREST;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE; 
+ 
+    samplerInfo.compareEnable = VK_TRUE;
+    samplerInfo.compareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+
+    if (vkCreateSampler(device, &samplerInfo, nullptr, &sampler) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create shadow sampler");
+    }
+}
+
+void create_g_buffer_shadows_descriptor_sets(VkDescriptorSetLayout g_buffer_layout, VkDescriptorSetLayout lighting_set_layout, uint32_t swap_chain_size, VkDescriptorPool descriptor_pool, std::vector<VkDescriptorSet>& descriptor_sets, std::vector<VkDescriptorSet>& lighting_sets, VkDevice device, const std::vector<VkImageView>& depth_views, const std::vector<VkImageView>& normal_views, const std::vector<VkImageView>& albedo_views, const std::vector<VkImageView>& lighting_views, VkSampler shadow_sampler, uint32_t depth_binding, uint32_t normal_binding, uint32_t albedo_binding, uint32_t lighting_binding)
+{
+    std::vector<VkDescriptorSetLayout> g_buffer_layouts(swap_chain_size, g_buffer_layout);
+    std::vector<VkDescriptorSetLayout> lighting_layouts(swap_chain_size, lighting_set_layout);
+
+    VkDescriptorSetAllocateInfo g_buffer_alloc_info{};
+    g_buffer_alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    g_buffer_alloc_info.descriptorPool = descriptor_pool;
+    g_buffer_alloc_info.descriptorSetCount = swap_chain_size;
+    g_buffer_alloc_info.pSetLayouts = g_buffer_layouts.data();
+
+    VkDescriptorSetAllocateInfo lighting_alloc_info{};
+    lighting_alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    lighting_alloc_info.descriptorPool = descriptor_pool;
+    lighting_alloc_info.descriptorSetCount = swap_chain_size;
+    lighting_alloc_info.pSetLayouts = lighting_layouts.data();
+
+    //g buffer descriptor sets
+    descriptor_sets.resize(swap_chain_size);
+
+    //lighting descriptor sets
+    lighting_sets.resize(swap_chain_size);
+
+    if (vkAllocateDescriptorSets(device, &g_buffer_alloc_info, descriptor_sets.data()) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to allocate g buffer descriptor sets");
+    }
+
+    if (vkAllocateDescriptorSets(device, &lighting_alloc_info, lighting_sets.data()) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to allocate lighting descriptor sets");
+    }
+
+    for (size_t i = 0; i < swap_chain_size; i++)
+    {
+        VkDescriptorImageInfo depth_info{};
+        depth_info.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+        depth_info.imageView = depth_views[i];
+        depth_info.sampler = VK_NULL_HANDLE; 
+
+        VkDescriptorImageInfo normal_info{};
+        normal_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        normal_info.imageView = normal_views[i];
+        normal_info.sampler = VK_NULL_HANDLE;
+
+        VkDescriptorImageInfo albedo_info{};
+        albedo_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        albedo_info.imageView = albedo_views[i];
+        albedo_info.sampler = VK_NULL_HANDLE;
+
+        VkDescriptorImageInfo lighting_info{};
+        lighting_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        lighting_info.imageView = lighting_views[i];
+        lighting_info.sampler = shadow_sampler;
+
+        std::array<VkWriteDescriptorSet, 4> descriptor_writes{};
+
+        descriptor_writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptor_writes[0].dstSet = descriptor_sets[i];
+        descriptor_writes[0].dstBinding = depth_binding;
+        descriptor_writes[0].dstArrayElement = 0;
+        descriptor_writes[0].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+        descriptor_writes[0].descriptorCount = 1;
+        descriptor_writes[0].pImageInfo = &depth_info;
+
+        descriptor_writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptor_writes[1].dstSet = descriptor_sets[i];
+        descriptor_writes[1].dstBinding = normal_binding;
+        descriptor_writes[1].dstArrayElement = 0;
+        descriptor_writes[1].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+        descriptor_writes[1].descriptorCount = 1;
+        descriptor_writes[1].pImageInfo = &normal_info;
+
+        descriptor_writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptor_writes[2].dstSet = descriptor_sets[i];
+        descriptor_writes[2].dstBinding = albedo_binding;
+        descriptor_writes[2].dstArrayElement = 0;
+        descriptor_writes[2].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+        descriptor_writes[2].descriptorCount = 1;
+        descriptor_writes[2].pImageInfo = &albedo_info;
+
+        descriptor_writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptor_writes[3].dstSet = lighting_sets[i];
+        descriptor_writes[3].dstBinding = lighting_binding;
+        descriptor_writes[3].dstArrayElement = 0;
+        descriptor_writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptor_writes[3].descriptorCount = 1;
+        descriptor_writes[3].pImageInfo = &lighting_info;
+
+        vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
+    }
+}
+
+void record_shadow_command_buffer(VkCommandBuffer command_buffer, VkRenderPass render_pass, const std::vector<VkFramebuffer>& shadow_map_frame_buffers, uint32_t image_index, VkExtent2D shadow_map_extent, VkPipeline shadow_pipeline, const std::vector<RenderObject>& render_objects, VkPipelineLayout shadow_pipeline_layout, std::vector<PushConstantData>& push_constants)
+{
+    VkCommandBufferBeginInfo command_buffer_begin_info{};
+    command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+    if (vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to begin command buffer");
+    }
+
+    VkClearValue clear_value{};
+    clear_value.depthStencil = {1.0f, 0};
+
+    VkRenderPassBeginInfo render_pass_begin_info{};
+    render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    render_pass_begin_info.clearValueCount = 1;
+    render_pass_begin_info.pClearValues = &clear_value;
+    render_pass_begin_info.renderPass = render_pass;
+    render_pass_begin_info.framebuffer = shadow_map_frame_buffers[image_index];
+    render_pass_begin_info.renderArea.offset = {0, 0};
+    render_pass_begin_info.renderArea.extent = shadow_map_extent;
+
+    vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+
+    vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow_pipeline);
+
+    VkViewport viewport{};
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width = static_cast<float>(shadow_map_extent.width);
+    viewport.height = static_cast<float>(shadow_map_extent.height);
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    vkCmdSetViewport(command_buffer, 0, 1, &viewport);
+
+    VkRect2D scissor{};
+    scissor.offset = {0, 0};
+    scissor.extent = shadow_map_extent;
+    vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+
+    float depthBiasConstant = 1.25f;
+    float depthBiasSlope = 1.75f;
+    vkCmdSetDepthBias(command_buffer, depthBiasConstant, 0.0f, depthBiasSlope);
+
+    int i = 0;
+    for (const auto& object: render_objects)
+    {
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(command_buffer, 0, 1, &object.vertex_buffer, offsets);
+        vkCmdBindIndexBuffer(command_buffer, object.index_buffer, 0, VK_INDEX_TYPE_UINT16);
+        vkCmdPushConstants(command_buffer, shadow_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &push_constants[i]);
+        
+        vkCmdDrawIndexed(command_buffer, object.index_count, 1, 0, 0, 0);  
+        i++;
+    }
+
+    vkCmdEndRenderPass(command_buffer);
+
+    if (vkEndCommandBuffer(command_buffer) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to record command buffer");
+    }
+}
+
+void draw_frame_with_shadows(uint32_t current_frame, VkDevice device, std::vector<VkFence>& in_flight_fences, const std::vector<VkCommandBuffer>& shadow_command_buffers, 
+    VkRenderPass& shadow_pass, const std::vector<VkFramebuffer>& shadow_map_frame_buffers, VkExtent2D shadow_map_extent, VkPipeline shadow_pipeline, 
+    const std::vector<RenderObject>& render_objects, VkPipelineLayout shadow_pipeline_layout, std::vector<PushConstantData>& push_constants, VkSwapchainKHR swap_chain,
+    std::vector<VkSemaphore>& image_available_semaphores, std::vector<VkSemaphore>& shadow_pass_finished_semaphores, VkQueue graphics_queue, 
+    std::vector<VkCommandBuffer>& main_command_buffers, std::vector<VkSemaphore>& render_finished_semaphores, VkRenderPass main_render_pass,
+    const std::vector<VkFramebuffer>& swap_chain_frame_buffers, VkExtent2D swap_chain_extent, VkPipeline geometry_pipeline, VkPipeline lighting_pipeline, 
+    VkDescriptorSet ubo_descriptor_set, const std::vector<VkDescriptorSet>& g_buffer_descriptor_sets, const std::vector<VkDescriptorSet>& lighting_descriptor_sets, VkPipelineLayout main_pipeline_layout)
+{
+    vkWaitForFences(device, 1, &in_flight_fences[current_frame], VK_TRUE, UINT64_MAX);
+
+    uint32_t image_index;
+    vkAcquireNextImageKHR(device, swap_chain, UINT64_MAX, image_available_semaphores[current_frame], VK_NULL_HANDLE, &image_index);
+
+    vkResetFences(device, 1, &in_flight_fences[current_frame]);
+
+    vkResetCommandBuffer(shadow_command_buffers[current_frame], 0);
+    record_shadow_command_buffer(shadow_command_buffers[current_frame], shadow_pass, shadow_map_frame_buffers, image_index, shadow_map_extent, shadow_pipeline, render_objects, shadow_pipeline_layout, push_constants);
+
+    vkResetCommandBuffer(main_command_buffers[current_frame], 0);
+    record_deferred_command_buffer_with_shadows(image_index, main_command_buffers[current_frame], main_render_pass, swap_chain_frame_buffers, swap_chain_extent, geometry_pipeline, lighting_pipeline, render_objects, ubo_descriptor_set, g_buffer_descriptor_sets, lighting_descriptor_sets, main_pipeline_layout);
+
+    VkSubmitInfo shadow_submit_info{};
+    shadow_submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+    shadow_submit_info.commandBufferCount = 1;
+    shadow_submit_info.pCommandBuffers = &shadow_command_buffers[current_frame];
+
+    shadow_submit_info.signalSemaphoreCount = 1;
+    shadow_submit_info.pSignalSemaphores = &shadow_pass_finished_semaphores[current_frame];
+
+    if (vkQueueSubmit(graphics_queue, 1, &shadow_submit_info, VK_NULL_HANDLE) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to submit shadow commands");
+    } 
+
+    VkSubmitInfo main_submit_info{};
+    main_submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+    VkSemaphore wait_semaphores[] = {image_available_semaphores[current_frame], shadow_pass_finished_semaphores[current_frame]};
+    VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT};
+
+    main_submit_info.waitSemaphoreCount = 2;
+    main_submit_info.pWaitSemaphores = wait_semaphores;
+    main_submit_info.pWaitDstStageMask = wait_stages;
+
+    main_submit_info.commandBufferCount = 1;
+    main_submit_info.pCommandBuffers = &main_command_buffers[current_frame];
+
+    main_submit_info.signalSemaphoreCount = 1;
+    main_submit_info.pSignalSemaphores = &render_finished_semaphores[current_frame];
+
+    if (vkQueueSubmit(graphics_queue, 1, &main_submit_info, in_flight_fences[current_frame]) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to submit draw command buffer");
+    }
+
+    VkPresentInfoKHR present_info{};
+    present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    present_info.waitSemaphoreCount = 1;
+    present_info.pWaitSemaphores = &render_finished_semaphores[current_frame];
+    
+    VkSwapchainKHR swap_chains[] = {swap_chain};
+    present_info.swapchainCount = 1;
+    present_info.pSwapchains = swap_chains;
+    present_info.pImageIndices = &image_index;
+
+    vkQueuePresentKHR(graphics_queue, &present_info);
+}   
+
+void create_semaphore_set(std::vector<VkSemaphore>& semaphores, int n, VkDevice device)
+{
+    semaphores.resize(n);
+
+    VkSemaphoreCreateInfo semaphore_create_info{};
+    semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    for (int i = 0; i < n; i++)
+    {
+        if (vkCreateSemaphore(device, &semaphore_create_info, nullptr, &semaphores[i]) != VK_SUCCESS)
+        {
+            throw std::runtime_error("failed to create semaphores");
+        }
+    }
+}
+
+void create_fence_set(std::vector<VkFence>& fences, int n, VkDevice device, VkFenceCreateFlagBits create_flags)
+{
+    fences.resize(n);
+
+    VkFenceCreateInfo fence_create_info{};
+    fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fence_create_info.flags = create_flags;
+
+    for (int i = 0; i < n; i++)
+    {
+        if (vkCreateFence(device, &fence_create_info, nullptr, &fences[i]) != VK_SUCCESS)
+        {
+            throw std::runtime_error("failed to create semaphores");
+        }
+    }
+}
+
+
+void record_deferred_command_buffer_with_shadows(uint32_t image_index, VkCommandBuffer command_buffer, VkRenderPass render_pass, const std::vector<VkFramebuffer>& swap_chain_frame_buffers, VkExtent2D swap_chain_extent, VkPipeline geometry_pipeline, VkPipeline lighting_pipeline, const std::vector<RenderObject>& render_objects, VkDescriptorSet ubo_descriptor_set, const std::vector<VkDescriptorSet>& g_buffer_descriptor_sets, const std::vector<VkDescriptorSet>& lighting_descriptor_sets, VkPipelineLayout pipeline_layout)
+{
+    VkCommandBufferBeginInfo command_buffer_begin_info{};
+    command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+    if (vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to begin command buffer");
+    }
+
+    //clear value for each attachment
+    std::array<VkClearValue, 4> clear_values{};
+    clear_values[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}}; 
+    clear_values[1].depthStencil = {1.0f, 0};           
+    clear_values[2].color = {{0.0f, 0.0f, 0.0f, 1.0f}}; 
+    clear_values[3].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+
+    VkRenderPassBeginInfo render_pass_begin_info{};
+    render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    render_pass_begin_info.clearValueCount = static_cast<uint32_t>(clear_values.size());
+    render_pass_begin_info.pClearValues = clear_values.data();
+    render_pass_begin_info.renderPass = render_pass;
+    render_pass_begin_info.framebuffer = swap_chain_frame_buffers[image_index];
+    render_pass_begin_info.renderArea.offset = {0, 0};
+    render_pass_begin_info.renderArea.extent = swap_chain_extent;
+
+    vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+
+    //start pipeline 0 (for subpass 0)
+    vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, geometry_pipeline);
+
+
+    vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1, &ubo_descriptor_set, 0, nullptr);
+
+    VkViewport viewport{};
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width = static_cast<float>(swap_chain_extent.width);
+    viewport.height = static_cast<float>(swap_chain_extent.height);
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    vkCmdSetViewport(command_buffer, 0, 1, &viewport);
+
+    VkRect2D scissor{};
+    scissor.offset = {0, 0};
+    scissor.extent = swap_chain_extent;
+    vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+
+    for (const auto& object: render_objects)
+    {
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(command_buffer, 0, 1, &object.vertex_buffer, offsets);
+        vkCmdBindIndexBuffer(command_buffer, object.index_buffer, 0, VK_INDEX_TYPE_UINT16);
+        vkCmdPushConstants(command_buffer, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &object.push_constants);
+        
+        vkCmdDrawIndexed(command_buffer, object.index_count, 1, 0, 0, 0);  
+    }
+
+    //start next subpass
+    vkCmdNextSubpass(command_buffer, VK_SUBPASS_CONTENTS_INLINE);
+
+
+    //2nd one doesnt need vertex buffer (that hardcoded triangle thing)
+    vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, lighting_pipeline);
+
+    std::array<VkDescriptorSet, 2> lighting_pass_sets = {
+    g_buffer_descriptor_sets[image_index], 
+    lighting_descriptor_sets[image_index]     
+    };
+
+    vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 1, static_cast<uint32_t>(lighting_pass_sets.size()), lighting_pass_sets.data(), 0, nullptr);
+
+    vkCmdDraw(command_buffer, 3, 1, 0, 0);
+
+    vkCmdEndRenderPass(command_buffer);
+
+    if (vkEndCommandBuffer(command_buffer) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to record command buffer");
+    }
+}
+
+
+void create_ubo_descriptor_sets2(
+    uint32_t n,
+    VkDescriptorSetLayout descriptor_set_layout,
+    VkDescriptorPool descriptor_pool,
+    std::vector<VkDescriptorSet>& descriptor_sets,
+    VkDevice device,
+    const std::vector<VkBuffer>& camera_buffers,
+    const std::vector<VkBuffer>& light_buffers)
+{
+    std::vector<VkDescriptorSetLayout> layouts(n, descriptor_set_layout);
+
+    VkDescriptorSetAllocateInfo alloc_info{};
+    alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    alloc_info.descriptorPool = descriptor_pool;
+    alloc_info.descriptorSetCount = n;
+    alloc_info.pSetLayouts = layouts.data();
+
+    descriptor_sets.resize(n);
+
+    if (vkAllocateDescriptorSets(
+            device,
+            &alloc_info,
+            descriptor_sets.data()) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to allocate descriptor sets");
+    }
+
+    for (size_t i = 0; i < n; i++)
+    {
+        VkDescriptorBufferInfo camera_info{};
+        camera_info.buffer = camera_buffers[i];
+        camera_info.offset = 0;
+        camera_info.range = sizeof(UniformBufferObject);
+
+        VkDescriptorBufferInfo light_info{};
+        light_info.buffer = light_buffers[i];
+        light_info.offset = 0;
+        light_info.range = sizeof(UniformBufferObject);
+
+        VkWriteDescriptorSet writes[2]{};
+
+        // binding 0 → camera
+        writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[0].dstSet = descriptor_sets[i];
+        writes[0].dstBinding = 0;
+        writes[0].dstArrayElement = 0;
+        writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        writes[0].descriptorCount = 1;
+        writes[0].pBufferInfo = &camera_info;
+
+        // binding 1 → light
+        writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[1].dstSet = descriptor_sets[i];
+        writes[1].dstBinding = 1;
+        writes[1].dstArrayElement = 0;
+        writes[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        writes[1].descriptorCount = 1;
+        writes[1].pBufferInfo = &light_info;
+
+        vkUpdateDescriptorSets(
+            device,
+            2,
+            writes,
+            0,
+            nullptr
+        );
+    }
 }

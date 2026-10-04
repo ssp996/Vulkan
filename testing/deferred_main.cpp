@@ -57,6 +57,9 @@ int main()
         
         VkRenderPass render_pass;
         create_deferred_render_pass(swap_chain_image_format, VK_SAMPLE_COUNT_1_BIT, depth_format, device, render_pass);
+
+        VkRenderPass shadow_pass;
+        create_shadow_pass(device, shadow_pass);
         
         VkPipelineLayout pipeline_layout;
 
@@ -67,9 +70,16 @@ int main()
         create_custom_descriptor_set_layout(device, ubo_descriptor_layout, {0, 1}, {1, 1}, {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER}, {nullptr, nullptr}, {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT});
 
         VkDescriptorSetLayout g_buffer_descriptor_layout;
-        create_custom_descriptor_set_layout(device, g_buffer_descriptor_layout, {0, 2, 3}, {1, 1, 1}, {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT}, {nullptr, nullptr, nullptr}, {VK_SHADER_STAGE_FRAGMENT_BIT, VK_SHADER_STAGE_FRAGMENT_BIT, VK_SHADER_STAGE_FRAGMENT_BIT});
+        create_custom_descriptor_set_layout(device, g_buffer_descriptor_layout, {0, 1, 2}, {1, 1, 1}, {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT}, {nullptr, nullptr, nullptr}, {VK_SHADER_STAGE_FRAGMENT_BIT, VK_SHADER_STAGE_FRAGMENT_BIT, VK_SHADER_STAGE_FRAGMENT_BIT});
 
-        std::vector<VkDescriptorSetLayout> descriptor_set_layouts = {ubo_descriptor_layout, g_buffer_descriptor_layout};
+        VkSampler shadow_sampler;
+        create_shadow_sampler(device, shadow_sampler);
+
+        VkDescriptorSetLayout lighting_descriptor_set_layout;
+        create_custom_descriptor_set_layout(device, lighting_descriptor_set_layout, {0}, {1}, {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER}, {&shadow_sampler}, {VK_SHADER_STAGE_FRAGMENT_BIT});
+        
+
+        std::vector<VkDescriptorSetLayout> descriptor_set_layouts = {ubo_descriptor_layout, g_buffer_descriptor_layout, lighting_descriptor_set_layout};
 
         create_deferred_pipelines(
             "shaders/deferred_geom_vert.spv",
@@ -83,6 +93,10 @@ int main()
             lighting_pipeline,
             descriptor_set_layouts
         );
+
+        VkPipelineLayout shadow_pipeline_layout;
+        VkPipeline shadow_pipeline;
+        create_shadow_pipeline("shaders/shadow_vertex.spv", device, sizeof(PushConstantData), shadow_pipeline_layout, shadow_pass, shadow_pipeline); 
 
         std::vector<VkImage> shadow_map_images(swap_chain_images.size());
         std::vector<VkDeviceMemory> shadow_map_memories(swap_chain_images.size());
@@ -128,7 +142,7 @@ int main()
         for (int i = 0; i < swap_chain_images.size(); i++)
         {
             create_frame_buffer(swap_chain_frame_buffers[i], render_pass, swap_chain_extent, device, {swap_chain_image_views[i], depth_image_views[i], normal_views[i], albedo_views[i]});
-            create_frame_buffer(shadow_map_frame_buffers[i], render_pass, shadow_map_extent, device, {shadow_map_views[i]}); 
+            create_frame_buffer(shadow_map_frame_buffers[i], shadow_pass, shadow_map_extent, device, {shadow_map_views[i]}); 
         }
 
 
@@ -137,13 +151,21 @@ int main()
 
 
         std::vector<VkCommandBuffer> command_buffers;
+        std::vector<VkCommandBuffer> shadow_command_buffers;
+
         command_buffers.resize(MAX_FRAMES_IN_FLIGHT);
+        shadow_command_buffers.resize(MAX_FRAMES_IN_FLIGHT);
+
         create_command_buffers(command_pool, device, command_buffers);
+        create_command_buffers(command_pool, device, shadow_command_buffers);
 
         std::vector<VkSemaphore> image_available_semaphores;
         std::vector<VkSemaphore> render_finished_semaphores;
         std::vector<VkFence> in_flight_fences;
         create_sync_objects(device, image_available_semaphores, render_finished_semaphores, in_flight_fences, MAX_FRAMES_IN_FLIGHT);
+
+        std::vector<VkSemaphore> shadow_pass_finished_semaphores;
+        create_semaphore_set(shadow_pass_finished_semaphores, MAX_FRAMES_IN_FLIGHT, device);
 
 
         const std::vector<Vertex> vertices = {
@@ -231,29 +253,33 @@ int main()
         create_uniform_buffer(device, physical_device, light_uniform_buffers, light_uniform_buffers_memory, light_uniform_buffers_mapped, MAX_FRAMES_IN_FLIGHT);
 
         VkDescriptorPool descriptor_pool{};
-        create_custom_descriptor_pool({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT}, {MAX_FRAMES_IN_FLIGHT, static_cast<uint32_t>(swap_chain_images.size() * 3)}, static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT + swap_chain_images.size()), descriptor_pool, device);
+        create_custom_descriptor_pool({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER}, {2 * MAX_FRAMES_IN_FLIGHT, static_cast<uint32_t>(swap_chain_images.size() * 3), static_cast<uint32_t>(swap_chain_images.size() * 1)}, static_cast<uint32_t>(2 * MAX_FRAMES_IN_FLIGHT + (2 * swap_chain_images.size())), descriptor_pool, device);
         
         std::vector<VkDescriptorSet> ubo_descriptor_sets;
-        std::vector<VkDescriptorSet> light_descriptor_sets;
+    
         
         const std::vector<uint32_t> ubo_offsets(MAX_FRAMES_IN_FLIGHT, 0);
         const std::vector<uint32_t> ubo_bindings(MAX_FRAMES_IN_FLIGHT, 0);
 
-        const std::vector<uint32_t> light_ubo_offsets(MAX_FRAMES_IN_FLIGHT, 1);
-        const std::vector<uint32_t> light_ubo_bindings(MAX_FRAMES_IN_FLIGHT, 0);
-
-        create_ubo_descriptor_sets<UniformBufferObject>(MAX_FRAMES_IN_FLIGHT, ubo_descriptor_layout, descriptor_pool, ubo_descriptor_sets, device, uniform_buffers, ubo_offsets, ubo_bindings);
-        create_ubo_descriptor_sets<UniformBufferObject>(MAX_FRAMES_IN_FLIGHT, ubo_descriptor_layout, descriptor_pool, light_descriptor_sets, device, light_uniform_buffers, light_ubo_offsets, light_ubo_bindings);
+        create_ubo_descriptor_sets2(
+            MAX_FRAMES_IN_FLIGHT,
+            ubo_descriptor_layout,
+            descriptor_pool,
+            ubo_descriptor_sets,
+            device,
+            uniform_buffers,
+            light_uniform_buffers
+        );
 
         std::vector<VkDescriptorSet> g_buffer_descriptor_sets;
+        std::vector<VkDescriptorSet> light_descriptor_sets;
 
-        create_g_buffer_descriptor_sets(g_buffer_descriptor_layout, static_cast<uint32_t>(swap_chain_images.size()), descriptor_pool, g_buffer_descriptor_sets, device, depth_image_views, normal_views, albedo_views, 0, 1, 2);
-
+        create_g_buffer_shadows_descriptor_sets(g_buffer_descriptor_layout, lighting_descriptor_set_layout, static_cast<uint32_t>(swap_chain_images.size()), descriptor_pool, 
+        g_buffer_descriptor_sets, light_descriptor_sets, device, depth_image_views, normal_views, albedo_views, shadow_map_views, shadow_sampler, 0, 1, 2, 0);
         uint32_t current_frame = 0;
 
         PushConstantData cube_push_constants{};
-        cube_push_constants.color = glm::vec3(1.0f, 1.0f, 1.0f);
-        cube_push_constants.model = glm::mat4(1.0f);
+        cube_push_constants.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -50.0f, 0.0f));
 
         RenderObject cube{};
         cube.vertex_buffer = vertex_buffer;
@@ -272,12 +298,9 @@ int main()
         VkDeviceMemory floor_index_memory;
         create_buffer<uint16_t>(device, physical_device, floor_indices, floor_index_buffer, floor_index_memory, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_SHARING_MODE_EXCLUSIVE);
 
-
         PushConstantData floor_push_constants{};    
-        floor_push_constants.color = glm::vec3(1.0f, 1.0f, 1.0f);
         floor_push_constants.model = glm::mat4(1.0f);
         
-
         RenderObject floor{};
         floor.vertex_buffer = floor_buffer;
         floor.index_buffer = floor_index_buffer;
@@ -286,71 +309,128 @@ int main()
         floor.vertex_buffer_memory = floor_memory;
         floor.index_buffer_memory  = floor_index_memory;
 
-
         std::vector<RenderObject> render_objects = {cube, floor};
+        
+        
+
         while(!glfwWindowShouldClose(window))
         {
             glfwPollEvents();
 
             float time = glfwGetTime();
-            
-            UniformBufferObject ubo{};
 
-            glm::mat4 cube_model = glm::rotate(glm::mat4(1.0f), time/5 * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            glm::mat4 cube_model = glm::mat4(1.0f);
+
+        
+            cube_model = glm::translate(
+                            cube_model,
+                            glm::vec3(0.5f, -0.5f, 0.0f)
+                        );
+
+            cube_model = glm::rotate(cube_model, time / 5.0f * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
             cube_model = glm::rotate(cube_model, glm::radians(30.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+
+
             render_objects[0].push_constants.model = cube_model;
 
-            glm::vec3 camera_pos = glm::vec3(0.0f, 5.0f, 0.0f);
-            glm::vec3 camera_lookat = glm::vec3(0.0f, 0.0f, 0.0f);
+            glm::vec3 camera_pos = glm::vec3(0.0f, 0.5f, 2.5f);
+            glm::vec3 camera_lookat = glm::vec3(0.0f, -0.5f, 0.0f);
             glm::vec3 camera_up = glm::vec3(0.0f, 1.0f, 0.0f);
 
-            glm::vec3 right = glm::normalize(glm::cross(camera_lookat, camera_up));
+            glm::mat4 view = glm::lookAt(
+                camera_pos,
+                camera_lookat,
+                camera_up
+            );
 
-            glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 1.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            glm::mat4 proj = glm::perspective(
+                glm::radians(45.0f),
+                (float)swap_chain_extent.width / (float)swap_chain_extent.height,
+                0.1f,
+                100.0f
+            );
 
-            glm::vec3 light_dir = glm::vec3(0.0f, -1.0f, 1.0f);
-
-            glm::mat4 proj = glm::perspective(glm::radians(45.0f), (float)swap_chain_extent.width / (float)swap_chain_extent.height, 0.1f, 10.0f);
             proj[1][1] *= -1;
-            ubo.vp = proj * view;
-            ubo.light_dir = light_dir;
-            
-            glm::vec3 scene_origin = glm::vec3(0.0f, 0.0f, 0.0f);
-            glm::vec3 light_pos = scene_origin - (light_dir * 50.0f);
 
-            glm::mat4 light_view = glm::lookAt(light_pos, scene_origin, camera_up);
+            glm::mat4 view_proj = proj * view;
 
-            glm::mat4 light_proj;
+            // --- 2. LIGHT SETUP ---
+            // Angled sun. Avoid purely vertical directions (0, -1, 0) to prevent light_view singularities
+            glm::vec3 light_dir = glm::vec3(0.0f, -1.0f, 0.0f);
 
-            create_light_projection_matrix(light_proj, view, 50.0f, glm::radians(45.0f), (float)swap_chain_extent.width / (float)swap_chain_extent.height, 0.1f);
+            // Put the light directly above the scene
+            glm::vec3 light_pos = glm::vec3(0.0f, 5.0f, 0.0f);
+
+            // IMPORTANT:
+            // We cannot use (0,1,0) as the up vector because the
+            // light is looking straight down along the Y axis.
+            glm::mat4 light_view = glm::lookAt(
+                light_pos,
+                glm::vec3(0.0f, 0.0f, 0.0f),
+                glm::vec3(0.0f, 0.0f, 1.0f)
+            );
+
+            glm::mat4 light_proj = glm::ortho(
+                -3.0f, 3.0f,
+                -3.0f, 3.0f,
+                0.1f, 20.0f
+            );
+
+            glm::mat4 light_view_proj = light_proj * light_view;
+
+            render_objects[0].push_constants.lightvp = light_view_proj;
+            render_objects[1].push_constants.lightvp = light_view_proj;
+
+            // --- 3. POPULATE THE UBOs ---
+            UniformBufferObject camera_ubo{};
+            camera_ubo.vp = view_proj;
+            camera_ubo.light_dir = light_dir;
+            camera_ubo.vp2 = glm::mat4(1.0f);
+            camera_ubo.light_dir2 = glm::vec3(0.0f);
 
             UniformBufferObject light_ubo{};
-            light_ubo.vp = light_proj * light_view;
+            light_ubo.vp = light_view_proj;
             light_ubo.light_dir = light_dir;
+            light_ubo.vp2 = glm::inverse(view_proj);
+            light_ubo.light_dir2 = glm::vec3(1.0f, 0.95f, 0.8f); // Warm sunlight
 
-            memcpy(uniform_buffers_mapped[current_frame], &ubo, sizeof(ubo));
+            // --- 4. SHADOW PASS PUSH CONSTANT ---
+            std::vector<PushConstantData> push_constants;
+            for (auto obj: render_objects)
+            {
+                push_constants.push_back(obj.push_constants);
+            }
+
+            memcpy(uniform_buffers_mapped[current_frame], &camera_ubo, sizeof(camera_ubo));
             memcpy(light_uniform_buffers_mapped[current_frame], &light_ubo, sizeof(light_ubo));
 
-            draw_frame(
-                current_frame,
-                device, 
-                in_flight_fences,
-                command_buffers,
-                render_pass,
-                swap_chain_frame_buffers,
-                swap_chain_extent,
-                VK_NULL_HANDLE,
-                render_objects,
-                swap_chain,
-                image_available_semaphores,
-                render_finished_semaphores,
-                graphics_queue,
-                ubo_descriptor_sets[current_frame],
-                pipeline_layout,
-                true,
-                &geometry_pipeline,
-                &lighting_pipeline,
-                &g_buffer_descriptor_sets
+            draw_frame_with_shadows(
+            current_frame,
+            device, 
+            in_flight_fences,
+            shadow_command_buffers,
+            shadow_pass,
+            shadow_map_frame_buffers, 
+            shadow_map_extent,
+            shadow_pipeline,
+            render_objects,
+            shadow_pipeline_layout,
+            push_constants,
+            swap_chain,
+            image_available_semaphores,
+            shadow_pass_finished_semaphores,
+            graphics_queue,
+            command_buffers,
+            render_finished_semaphores,
+            render_pass,
+            swap_chain_frame_buffers,
+            swap_chain_extent,
+            geometry_pipeline,
+            lighting_pipeline,
+            ubo_descriptor_sets[current_frame],
+            g_buffer_descriptor_sets,
+            light_descriptor_sets,
+            pipeline_layout
             );
 
             current_frame = (current_frame + 1) % MAX_FRAMES_IN_FLIGHT;

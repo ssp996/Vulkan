@@ -46,12 +46,14 @@ struct UniformBufferObject
 {
     alignas(16) glm::mat4 vp;
     alignas(16) glm::vec3 light_dir;
+    alignas(16) glm::mat4 vp2;
+    alignas(16) glm::vec3 light_dir2;
 };
 
 struct PushConstantData
 {
     alignas(16) glm::mat4 model;
-    alignas(16) glm::vec3 color;
+    alignas(16) glm::mat4 lightvp;
 };
 
 struct RenderObject
@@ -296,5 +298,40 @@ std::vector<VkPushConstantRange> get_push_constant_ranges(const std::vector<VkSh
 }   
 
 void create_frame_buffers(std::vector<std::vector<VkFramebuffer>>& frame_buffers_vector, std::vector<std::vector<VkImageView>>& image_views_vector, VkRenderPass render_pass, const std::vector<VkExtent2D>& extents, VkDevice device, const std::vector<std::vector<std::vector<VkImageView>>>& attachments_vector);
+
 void create_frame_buffer(VkFramebuffer& frame_buffer, VkRenderPass render_pass, VkExtent2D extent, VkDevice device, const std::vector<VkImageView> attachments);
+
 void create_light_projection_matrix(glm::mat4& lightProj, glm::mat4& cameraView, float shadowDistance, float cameraFOV, float aspectRatio, float cameraNear);
+
+void create_shadow_pass(VkDevice device, VkRenderPass& render_pass);
+
+void create_shadow_pipeline(const std::string& vert_filepath, VkDevice device, size_t push_constant_size, VkPipelineLayout& pipeline_layout, VkRenderPass render_pass, VkPipeline& pipeline);
+
+void create_shadow_sampler(VkDevice device, VkSampler& sampler);
+
+void create_g_buffer_shadows_descriptor_sets(VkDescriptorSetLayout g_buffer_layout, VkDescriptorSetLayout lighting_set_layout, uint32_t swap_chain_size, VkDescriptorPool descriptor_pool, std::vector<VkDescriptorSet>& descriptor_sets, std::vector<VkDescriptorSet>& lighting_sets, VkDevice device, const std::vector<VkImageView>& depth_views, const std::vector<VkImageView>& normal_views, const std::vector<VkImageView>& albedo_views, const std::vector<VkImageView>& lighting_views, VkSampler shadow_sampler, uint32_t depth_binding, uint32_t normal_binding, uint32_t albedo_binding, uint32_t lighting_binding);
+
+void record_shadow_command_buffer(VkCommandBuffer command_buffer, VkRenderPass render_pass, const std::vector<VkFramebuffer>& shadow_map_frame_buffers, uint32_t image_index, VkExtent2D shadow_map_extent, VkPipeline shadow_pipeline, const std::vector<RenderObject>& render_objects, VkPipelineLayout shadow_pipeline_layout, std::vector<PushConstantData>& push_constants);
+
+void draw_frame_with_shadows(uint32_t current_frame, VkDevice device, std::vector<VkFence>& in_flight_fences, const std::vector<VkCommandBuffer>& shadow_command_buffers, 
+    VkRenderPass& shadow_pass, const std::vector<VkFramebuffer>& shadow_map_frame_buffers, VkExtent2D shadow_map_extent, VkPipeline shadow_pipeline, 
+    const std::vector<RenderObject>& render_objects, VkPipelineLayout shadow_pipeline_layout, std::vector<PushConstantData>& push_constants, VkSwapchainKHR swap_chain,
+    std::vector<VkSemaphore>& image_available_semaphores, std::vector<VkSemaphore>& shadow_pass_finished_semaphores, VkQueue graphics_queue, 
+    std::vector<VkCommandBuffer>& main_command_buffers, std::vector<VkSemaphore>& render_finished_semaphores, VkRenderPass main_render_pass,
+    const std::vector<VkFramebuffer>& swap_chain_frame_buffers, VkExtent2D swap_chain_extent, VkPipeline geometry_pipeline, VkPipeline lighting_pipeline, 
+    VkDescriptorSet ubo_descriptor_set, const std::vector<VkDescriptorSet>& g_buffer_descriptor_sets, const std::vector<VkDescriptorSet>& lighting_descriptor_sets, VkPipelineLayout main_pipeline_layout);
+
+void create_semaphore_set(std::vector<VkSemaphore>& semaphores, int n, VkDevice device);
+
+void create_fence_set(std::vector<VkFence>& fences, int n, VkDevice device, VkFenceCreateFlagBits create_flags);
+
+void record_deferred_command_buffer_with_shadows(uint32_t image_index, VkCommandBuffer command_buffer, VkRenderPass render_pass, const std::vector<VkFramebuffer>& swap_chain_frame_buffers, VkExtent2D swap_chain_extent, VkPipeline geometry_pipeline, VkPipeline lighting_pipeline, const std::vector<RenderObject>& render_objects, VkDescriptorSet ubo_descriptor_set, const std::vector<VkDescriptorSet>& g_buffer_descriptor_sets, const std::vector<VkDescriptorSet>& lighting_descriptor_sets, VkPipelineLayout pipeline_layout);
+
+void create_ubo_descriptor_sets2(
+    uint32_t n,
+    VkDescriptorSetLayout descriptor_set_layout,
+    VkDescriptorPool descriptor_pool,
+    std::vector<VkDescriptorSet>& descriptor_sets,
+    VkDevice device,
+    const std::vector<VkBuffer>& camera_buffers,
+    const std::vector<VkBuffer>& light_buffers);
