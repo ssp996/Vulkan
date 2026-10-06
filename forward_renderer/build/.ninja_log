@@ -1,9 +1,0 @@
-# ninja log v7
-11	80	8129064301583510	CMakeFiles/VulkanEngine.dir/enums.cpp.obj	c557ae048a3387c8
-20	889	8129064301684708	CMakeFiles/VulkanEngine.dir/main.cpp.obj	a83b9e4000ef83a0
-14	896	8129064301613465	CMakeFiles/VulkanEngine.dir/image_views.cpp.obj	af8656d9cca49588
-24	932	8129064301719814	CMakeFiles/VulkanEngine.dir/swap_chain.cpp.obj	b6d6162d92e2cfa8
-17	958	8129064301644712	CMakeFiles/VulkanEngine.dir/init.cpp.obj	1f0806e6cdb12f8d
-7	1056	8129064301543468	CMakeFiles/VulkanEngine.dir/debug.cpp.obj	8712132fdff01f3b
-12	759	8129064493069909	CMakeFiles/VulkanEngine.dir/vma_impl.cpp.obj	9c23564519f79923
-759	868	8129064500546335	VulkanEngine.exe	aae2c14683d1ea4f
