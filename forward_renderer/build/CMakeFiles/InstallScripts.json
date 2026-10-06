@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"E:/vulkan_projects/forward_renderer/build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}
