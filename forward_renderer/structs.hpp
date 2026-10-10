@@ -110,3 +110,8 @@ struct DirectionalLightPushConstant{
     alignas(16) glm::mat4 model;
     alignas(16) glm::mat4 light_space_matrix;
 };
+
+struct DescriptorInfo{
+    VkDescriptorType descriptor_type;
+    uint32_t descriptor_count;
+};

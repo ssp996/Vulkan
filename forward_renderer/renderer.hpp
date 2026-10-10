@@ -19,6 +19,9 @@ const std::vector<const char*> deviceExtensions = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
 
+void create_custom_descriptor_set_layout(VkDevice device, VkDescriptorSetLayout& descriptor_set_layout, const std::vector<uint32_t>& bindings, const std::vector<uint32_t>& descriptor_counts, const std::vector<VkDescriptorType>& descriptor_types, const std::vector<VkSampler*> samplers, const std::vector<VkShaderStageFlags>& stage_flags);
+
+
 class Renderer
 {
     private: 
@@ -45,7 +48,8 @@ class Renderer
         std::vector<VkImageView> swap_chain_image_views;
         std::vector<VkFramebuffer> swap_chain_frame_buffers;
 
-        std::vector<VkDeviceMemory> depth_image_memories;
+        std::vector<VkImageView> depth_image_views;
+        std::vector<VkImage> depth_images;
 
         VkFormat shadow_map_format = VK_FORMAT_D32_SFLOAT;
         VkExtent2D directional_shadow_map_extent = {2048, 2048};
@@ -68,6 +72,15 @@ class Renderer
 
         std::vector<RenderObject> render_objects;
         std::vector<DirectionalLight> directional_lights;
+
+        uint32_t MAX_DESCRIPTOR_SETS = 1000;
+
+        VkDescriptorPool descriptor_pool;
+
+        VkDescriptorSetLayout ubo_descriptor_layout;
+        VkDescriptorSetLayout sampler_descriptor_layout;
+
+        std::vector<VkDescriptorSet> ubo_descriptor_sets;
 
         //debug functions
         void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
@@ -100,9 +113,16 @@ class Renderer
         std::vector<char> readFile(const std::string& filepath);
         VkShaderModule createShaderModule(const std::vector<char>& code, VkDevice device);
 
+        //descriptors
+        void create_descriptor_pool();
+
         //shadow pass
         void directional_shadow_pass(uint32_t current_frame);
         void create_shadow_pipeline();
+
+        //main pass
+        void main_pass(uint32_t current_frame);
+
         
 
     public:
