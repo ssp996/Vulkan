@@ -112,6 +112,12 @@ struct DirectionalLightPushConstant{
 };
 
 struct DescriptorInfo{
+    VkDescriptorSetLayoutBinding layout_binding;
     VkDescriptorType descriptor_type;
-    uint32_t descriptor_count;
+    DescriptorUsage usage_flag;
+
+    std::vector<VkDescriptorBufferInfo> buffer_info;
+    std::vector<VkDescriptorImageInfo> image_info;
+    std::vector<VkBufferView> texel_buffer_view;
+    const void* extension;
 };

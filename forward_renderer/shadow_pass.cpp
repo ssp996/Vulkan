@@ -183,3 +183,72 @@ void Renderer::create_shadow_pipeline()
 
     vkDestroyShaderModule(device, vert_module, nullptr);
 }
+
+void Renderer::create_shadow_sampler()
+{
+    VkSamplerCreateInfo samplerInfo{};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = VK_FILTER_NEAREST;
+    samplerInfo.minFilter = VK_FILTER_NEAREST;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE; 
+ 
+    samplerInfo.compareEnable = VK_TRUE;
+    samplerInfo.compareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+
+    if (vkCreateSampler(device, &samplerInfo, nullptr, &shadow_sampler) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create shadow sampler");
+    }
+}
+
+void Renderer::create_shadow_maps(uint32_t current_frame)
+{
+    std::vector<VkDescriptorImageInfo> shadow_image_infos;
+    shadow_image_infos.resize(MAX_DIRECTIONAL_LIGHTS);
+
+    for (int i = 0; i < 4; i++) 
+    {
+        VkDescriptorImageInfo image_info{};
+        image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        image_info.sampler = shadow_sampler; 
+        
+        if (i < directional_lights.size()) 
+        {
+            image_info.imageView = directional_lights[i].depth_image_views[current_frame];
+        } 
+        else 
+        {
+    
+            image_info.imageView = directional_lights[0].depth_image_views[current_frame];
+        }
+        
+        shadow_image_infos.push_back(image_info);
+    }
+
+    VkWriteDescriptorSet shadow_write{};
+    shadow_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    shadow_write.dstSet = directional_shadow_map_descriptor_set;
+    shadow_write.dstBinding = directional_shadow_maps_binding;
+    shadow_write.dstArrayElement = 0; 
+    shadow_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    shadow_write.descriptorCount = MAX_DIRECTIONAL_LIGHTS; 
+    shadow_write.pImageInfo = shadow_image_infos.data(); 
+
+    vkUpdateDescriptorSets(device, 1, &shadow_write, 0, nullptr);
+}
+
+void Renderer::create_directional_shadow_map_descriptor_layout()
+{
+    VkDescriptorSetLayoutBinding shadow_maps_binding{};
+    shadow_maps_binding.binding = directional_shadow_maps_binding;
+    shadow_maps_binding.descriptorCount = MAX_DIRECTIONAL_LIGHTS;
+    shadow_maps_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    shadow_maps_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    shadow_maps_binding.pImmutableSamplers = nullptr;
+
+}

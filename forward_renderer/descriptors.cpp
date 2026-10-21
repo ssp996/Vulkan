@@ -51,3 +51,85 @@ void create_custom_descriptor_set_layout(VkDevice device, VkDescriptorSetLayout&
         throw std::runtime_error("failed to create descriptor set layout");
     }
 }
+
+DescriptorSet::DescriptorSet(uint32_t s) : set_number(s) {};
+
+void DescriptorSet::add_descrpitor_info(DescriptorInfo info)
+{
+    descriptor_infos.push_back(info);
+}
+
+void DescriptorSet::create_set_layout(VkDevice device)
+{
+    VkDescriptorSetLayoutCreateInfo layout_info{};
+
+    layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+
+    std::vector<VkDescriptorSetLayoutBinding> layout_bindings;
+    for (auto info: descriptor_infos)
+    {   
+        layout_bindings.push_back(info.layout_binding);
+    }
+
+    layout_info.bindingCount = static_cast<uint32_t>(layout_bindings.size());
+    layout_info.pBindings = layout_bindings.data();
+
+    if (vkCreateDescriptorSetLayout(device, &layout_info, nullptr, &layout) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create descriptor set layout");
+    }
+}
+
+void DescriptorSet::create_descriptor_set(uint32_t n, VkDescriptorPool descriptor_pool, VkDevice device)
+{
+    std::vector<VkDescriptorSetLayout> layouts(n, layout);
+
+    VkDescriptorSetAllocateInfo alloc_info{};
+    alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    alloc_info.descriptorPool = descriptor_pool; 
+    alloc_info.descriptorSetCount = n;          
+    alloc_info.pSetLayouts = layouts.data();
+
+    descriptor_sets.resize(n);
+
+    if (vkAllocateDescriptorSets(device, &alloc_info, descriptor_sets.data()) != VK_SUCCESS) 
+    {
+        throw std::runtime_error("Failed to allocate main pass descriptor sets!");
+    }
+    
+    std::vector<VkWriteDescriptorSet> descriptor_writes;
+    
+    for (uint32_t i = 0; i < n; i++)
+    {
+        for (const auto& info : descriptor_infos)
+        {
+            VkWriteDescriptorSet write{};
+            write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            
+            write.dstSet = descriptor_sets[i]; 
+            
+            write.dstBinding = info.layout_binding.binding;
+            write.dstArrayElement = 0;
+            write.descriptorType = info.descriptor_type;
+            write.descriptorCount = info.layout_binding.descriptorCount;
+
+            uint32_t offset = i * info.layout_binding.descriptorCount;
+
+            // 2. Safely grab the pointer to the correct element for this frame
+            bool has_image  = static_cast<uint32_t>(info.usage_flag) & static_cast<uint32_t>(DescriptorUsage::ImageInfo);
+            bool has_buffer = static_cast<uint32_t>(info.usage_flag) & static_cast<uint32_t>(DescriptorUsage::BufferInfo);
+            bool has_texel  = static_cast<uint32_t>(info.usage_flag) & static_cast<uint32_t>(DescriptorUsage::TexelBufferView);
+            bool has_ext    = static_cast<uint32_t>(info.usage_flag) & static_cast<uint32_t>(DescriptorUsage::Extension);
+
+            write.pImageInfo = has_image  ? &info.image_info[offset] : nullptr;
+            write.pBufferInfo = has_buffer ? &info.buffer_info[offset] : nullptr;
+            write.pTexelBufferView = has_texel ? &info.texel_buffer_view[offset] : nullptr;
+            
+            write.pNext = has_ext ? info.extension : nullptr;
+
+            descriptor_writes.push_back(write);
+        }
+    }
+
+    vkUpdateDescriptorSets(device, descriptor_writes.size(), descriptor_writes.data(), 0, nullptr);
+}

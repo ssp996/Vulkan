@@ -21,11 +21,32 @@ const std::vector<const char*> deviceExtensions = {
 
 void create_custom_descriptor_set_layout(VkDevice device, VkDescriptorSetLayout& descriptor_set_layout, const std::vector<uint32_t>& bindings, const std::vector<uint32_t>& descriptor_counts, const std::vector<VkDescriptorType>& descriptor_types, const std::vector<VkSampler*> samplers, const std::vector<VkShaderStageFlags>& stage_flags);
 
+class DescriptorSet
+{
+    public:
+        DescriptorSet(uint32_t s);
+
+    private:
+        uint32_t set_number;
+
+        std::vector<DescriptorInfo> descriptor_infos;
+
+        VkDescriptorSetLayout layout;
+
+        std::vector<VkDescriptorSet> descriptor_sets;
+
+        void add_descrpitor_info(DescriptorInfo info);
+
+        void create_set_layout(VkDevice device);
+
+        void create_descriptor_set(uint32_t n, VkDescriptorPool descriptor_pool, VkDevice device);
+};
 
 class Renderer
 {
     private: 
         uint32_t MAX_FRAMES_IN_FLIGHT = 3;
+        uint32_t MAX_DIRECTIONAL_LIGHTS = 4;
 
         GLFWwindow* window;
 
@@ -55,6 +76,11 @@ class Renderer
         VkExtent2D directional_shadow_map_extent = {2048, 2048};
         VkPipelineLayout directional_shadow_pipeline_layout;
         VkPipeline directional_shadow_pipeline;
+
+        VkSampler shadow_sampler;
+        VkDescriptorSet directional_shadow_map_descriptor_set;
+
+        uint32_t directional_shadow_maps_binding = 1;
 
         VkPipelineLayout main_pipeline_layout;
         VkPipeline main_pipeline;
@@ -113,13 +139,19 @@ class Renderer
         std::vector<char> readFile(const std::string& filepath);
         VkShaderModule createShaderModule(const std::vector<char>& code, VkDevice device);
 
+        //buffers
+        void create_buffer(size_t size);
+
         //descriptors
         void create_descriptor_pool();
 
         //shadow pass
         void directional_shadow_pass(uint32_t current_frame);
         void create_shadow_pipeline();
-
+        void create_shadow_sampler();
+        void create_shadow_maps(uint32_t current_frame);
+        void create_directional_shadow_map_descriptor_layout();
+        
         //main pass
         void main_pass(uint32_t current_frame);
 

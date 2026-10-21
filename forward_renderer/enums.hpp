@@ -22,4 +22,11 @@ enum class ResourceTypes : uint32_t{
     Allocator =             18
 };
 
+enum class DescriptorUsage : uint32_t{
+    BufferInfo = 0b0001,
+    ImageInfo = 0b0010,
+    TexelBufferView = 0b0100,
+    Extension = 0b1000
+};
+
 bool operator<(ResourceTypes a, ResourceTypes b);
