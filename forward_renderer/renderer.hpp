@@ -38,8 +38,6 @@ class DescriptorSet
         void add_descrpitor_info(DescriptorInfo info);
 
         void create_set_layout(VkDevice device);
-
-        void create_descriptor_set(uint32_t n, VkDescriptorPool descriptor_pool, VkDevice device);
 };
 
 class Renderer
@@ -80,6 +78,8 @@ class Renderer
         VkSampler shadow_sampler;
         VkDescriptorSet directional_shadow_map_descriptor_set;
 
+        AllocatedBuffer dir_lights_buffer;
+
         uint32_t directional_shadow_maps_binding = 1;
 
         VkPipelineLayout main_pipeline_layout;
@@ -107,6 +107,19 @@ class Renderer
         VkDescriptorSetLayout sampler_descriptor_layout;
 
         std::vector<VkDescriptorSet> ubo_descriptor_sets;
+        std::vector<VkDescriptorSet> shadow_map_descriptor_sets;
+
+
+        //spirv reflect
+        /* SpvReflectShaderModule module;
+        std::vector<SpvReflectDescriptorSet*> reflect_descriptor_sets;
+        std::vector<std::vector<VkDescriptorSetLayoutBinding>> all_bindings; 
+        std::vector<VkDescriptorSetLayout> descriptor_set_layouts;
+        std::vector<std::vector<VkDescriptorSet>> descriptor_sets;*/
+
+        std::vector<SpvReflectShaderModule*>& reflect_shader_modules; 
+        std::map<uint32_t, SetLayoutInfo> set_layout_infos;
+
 
         //debug functions
         void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
@@ -133,7 +146,8 @@ class Renderer
         VkImageView create_swap_chain_image_view(VkImage image, VkFormat format);
         VkImageView create_depth_image_view(VkImage image, VkFormat format);
         void create_image(VkImage& image, VkFormat format, VkImageUsageFlags usage);
-        void allocate_depth_images_and_views();
+        void allocate_shadow_map_images_and_views();
+        void allocate_depth_image_views();
 
         //shader compilation
         std::vector<char> readFile(const std::string& filepath);
@@ -144,6 +158,16 @@ class Renderer
 
         //descriptors
         void create_descriptor_pool();
+        void allocate_descriptor_set(VkDescriptorSetLayout layout, std::vector<VkDescriptorSet>& descriptor_sets, uint32_t n);
+        /* void create_descriptor_sets(std::vector<uint32_t> set_sizes); */
+        void create_descriptor_set(VkDescriptorSet& descriptor_set, const SetLayoutInfo& set_layout_info, const std::vector<BindingData>& binding_data);
+        VkDescriptorBufferInfo make_buffer_info(const AllocatedBuffer& allocated_buffer, uint32_t frame);
+        VkDescriptorImageInfo make_image_info(const VkImageView& image_view, VkSampler sampler, VkImageLayout image_layout);
+
+        void write_set(VkDescriptorSet set, const SetLayoutInfo& set_layout_info, const std::vector<BindingData>& binding_data);
+
+        std::map<uint32_t, SetLayoutInfo> Renderer::build_set_layouts();
+
 
         //shadow pass
         void directional_shadow_pass(uint32_t current_frame);
@@ -153,6 +177,7 @@ class Renderer
         void create_directional_shadow_map_descriptor_layout();
         
         //main pass
+        void create_directional_light_descriptors();
         void main_pass(uint32_t current_frame);
 
         

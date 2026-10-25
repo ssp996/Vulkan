@@ -5,6 +5,8 @@
 
 #include "vk_mem_alloc.h"
 
+#include "SPIRV-Reflect/spirv_reflect.h"
+
 #include <vector>
 #include <stdexcept>
 #include <cstring>
@@ -19,3 +21,4 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <unordered_map>
 #include <any>
+#include <map>

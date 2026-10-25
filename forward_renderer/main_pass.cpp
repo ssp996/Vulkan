@@ -1,5 +1,37 @@
 #include "renderer.hpp"
 
+void Renderer::create_directional_light_descriptors()
+{
+    const SetLayoutInfo& set_info = set_layout_infos.at(0);
+
+    allocate_descriptor_set(set_info.layout, shadow_map_descriptor_sets, static_cast<uint32_t>(swap_chain_images.size()));
+
+    allocate_shadow_map_images_and_views();
+
+    for (int frame = 0; frame < swap_chain_images.size(); frame++)
+    {
+        std::vector<VkDescriptorImageInfo> frame_image_infos;
+        for (const auto& light: directional_lights)
+        {
+            frame_image_infos.push_back(make_image_info(light.depth_image_views[frame], shadow_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+        }
+
+        BindingData sampler_bd{};
+        sampler_bd.name = "dirShadowMaps";
+        sampler_bd.buffers = {};
+        sampler_bd.images = frame_image_infos;
+
+        BindingData light_buffer_object_bd{};
+        light_buffer_object_bd.name = "dirLights";
+        light_buffer_object_bd.images = {};
+        light_buffer_object_bd.buffers = {make_buffer_info(dir_lights_buffer, frame)};
+
+        std::vector<BindingData> binding_data = {sampler_bd, light_buffer_object_bd};
+        
+        write_set(shadow_map_descriptor_sets[frame], set_info, binding_data);
+    }
+}
+
 void Renderer::main_pass(uint32_t current_frame)
 {
     VkRenderingAttachmentInfo color_attachment{};

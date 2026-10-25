@@ -70,6 +70,8 @@ struct AllocatedImage{
 struct AllocatedBuffer{
     VkBuffer buffer;
     VmaAllocation allocation;
+    size_t padded_size;
+    size_t elem_size;
 };
 
 struct Mesh{
@@ -121,3 +123,24 @@ struct DescriptorInfo{
     std::vector<VkBufferView> texel_buffer_view;
     const void* extension;
 };
+
+struct SetLayoutInfo{
+    uint32_t set = 0;
+    VkDescriptorSetLayout layout = VK_NULL_HANDLE;
+    std::vector<VkDescriptorSetLayoutBinding> bindings;
+    std::unordered_map<std::string, uint32_t> names; //variable names - bindings
+
+    const VkDescriptorSetLayoutBinding& get_set_layout_binding(const std::string& name)
+    const {
+        uint32_t index = names.at(name);
+
+        return *std::find_if(bindings.begin(), bindings.end(), [&](auto& b){return b.binding == index;});
+    }
+};
+
+struct BindingData {
+    std::string name;
+    std::vector<VkDescriptorBufferInfo> buffers;   
+    std::vector<VkDescriptorImageInfo>  images;    
+};
+

@@ -13,6 +13,16 @@ VkFormat find_supported_format(VkPhysicalDevice physical_device, const std::vect
     throw std::runtime_error("failed to find supported format!");
 }
 
+VkFormat find_depth_format(VkPhysicalDevice physical_device) 
+{
+    return find_supported_format(
+        physical_device,
+        {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
+        VK_IMAGE_TILING_OPTIMAL,
+        VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+    );
+}
+
 VkImageView Renderer::create_swap_chain_image_view(VkImage image, VkFormat format) 
 {
     VkImageViewCreateInfo view_info{};
@@ -52,7 +62,7 @@ VkImageView Renderer::create_depth_image_view(VkImage image, VkFormat format)
     view_info.subresourceRange.layerCount = 1;
 
     VkImageView image_view;
-    if (vkCreateImageView(device, &view_info, nullptr, &image_view) != VK_SUCCESS) throw std::runtime_error("failed to create image view!");
+    if (vkCreateImageView(device, &view_info, nullptr, &image_view) != VK_SUCCESS) throw std::runtime_error("failed to create image view");
 
     resources.push_back(ResourceTypes::ImageViews, image_view);
 
@@ -96,7 +106,7 @@ void Renderer::create_image(VkImage& image, VkFormat format, VkImageUsageFlags u
     resources.push_back(ResourceTypes::AllocatedImages, allocated_image);
 }
 
-void Renderer::allocate_depth_images_and_views()
+void Renderer::allocate_shadow_map_images_and_views()
 {
     for (auto light : directional_lights)
     {
@@ -105,5 +115,16 @@ void Renderer::allocate_depth_images_and_views()
             create_image(light.depth_images[i], shadow_map_format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
             light.depth_image_views[i] = create_depth_image_view(light.depth_images[i], shadow_map_format);
         }
+    }
+}
+
+void Renderer::allocate_depth_image_views()
+{
+    VkFormat depth_format = find_depth_format(physical_device);
+
+    for (int i = 0; i < swap_chain_images.size(); i++)
+    {
+        create_image(depth_images[i], depth_format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
+        depth_image_views[i] = create_depth_image_view(depth_images[i], depth_format);
     }
 }

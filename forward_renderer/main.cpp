@@ -1,5 +1,4 @@
 #include "renderer.hpp"
-#define VMA_IMPLEMENTATION
 
 int main()
 {
