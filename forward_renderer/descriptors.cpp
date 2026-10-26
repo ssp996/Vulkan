@@ -55,7 +55,7 @@ void create_custom_descriptor_set_layout(VkDevice device, VkDescriptorSetLayout&
     }
 }
 
-DescriptorSet::DescriptorSet(uint32_t s) : set_number(s) {};
+/* DescriptorSet::DescriptorSet(uint32_t s) : set_number(s) {};
 
 void DescriptorSet::add_descrpitor_info(DescriptorInfo info)
 {
@@ -82,7 +82,7 @@ void DescriptorSet::create_set_layout(VkDevice device)
         throw std::runtime_error("failed to create descriptor set layout");
     }
 }
-
+ */
 /* void DescriptorSet::create_descriptor_set(uint32_t n, VkDescriptorPool descriptor_pool, VkDevice device)
 {
     std::vector<VkDescriptorSetLayout> layouts(n, layout);

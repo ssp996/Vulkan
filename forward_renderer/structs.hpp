@@ -2,6 +2,7 @@
 
 #include "enums.hpp"
 #include "include.hpp"
+#include "constants.hpp"
 
 struct QueueFamilyIndices{
     std::optional<uint32_t> graphicsFamily;
@@ -99,7 +100,7 @@ struct RenderObject{
 struct DirectionalLight{
     glm::vec3 direction;
     glm::vec3 color;
-    glm::vec3 intensity;
+    float intensity;
     glm::mat4 light_space_matrix;
 
     //for shadow map
@@ -142,5 +143,17 @@ struct BindingData {
     std::string name;
     std::vector<VkDescriptorBufferInfo> buffers;   
     std::vector<VkDescriptorImageInfo>  images;    
+};
+
+struct DirLight{ 
+    alignas(16) glm::vec3 direction;
+    alignas(16) glm::vec3 color;
+    alignas(16) float intensity;
+    alignas(16) glm::mat4 light_space_matrix;
+};
+
+struct LightBufferObject{
+    alignas(16) uint32_t active_lights;
+    alignas(16)  DirLight dir_lights[MAX_DIRECTIONAL_LIGHTS];
 };
 

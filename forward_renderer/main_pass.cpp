@@ -87,5 +87,21 @@ void Renderer::main_pass(uint32_t current_frame)
     scissor.extent = swap_chain_extent;
     vkCmdSetScissor(main_command_buffers[current_frame], 0, 1, &scissor);
 
-    
+    vkCmdBindDescriptorSets(main_command_buffers[current_frame], VK_PIPELINE_BIND_POINT_GRAPHICS, main_pipeline_layout, 0, 1, shadow_map_descriptor_sets.data(), 0, nullptr);
+
+    for (const auto& object: render_objects)
+    {
+        VkDeviceSize offsets = 0;
+        vkCmdBindVertexBuffers(main_command_buffers[current_frame], 0, 1, &object.mesh->vertex_buffer.buffer, &offsets);
+        vkCmdBindIndexBuffer(main_command_buffers[current_frame], object.mesh->index_buffer.buffer, 0, VK_INDEX_TYPE_UINT16);
+
+        glm::mat4 mvp = object.model * view_matrix * perspective_projection_matrix; //later create a camera class which owns the view matrix
+
+        vkCmdPushConstants(main_command_buffers[current_frame], main_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &mvp);
+
+        vkCmdDrawIndexed(main_command_buffers[current_frame], object.mesh->index_count, 1, 0, 0, 0);  
+    }
+
+    vkCmdEndRendering(main_command_buffers[current_frame]);
+
 }

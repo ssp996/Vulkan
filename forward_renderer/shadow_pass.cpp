@@ -206,7 +206,7 @@ void Renderer::create_shadow_sampler()
     }
 }
 
-void Renderer::create_shadow_maps(uint32_t current_frame)
+/* void Renderer::create_shadow_maps(uint32_t current_frame)
 {
     std::vector<VkDescriptorImageInfo> shadow_image_infos;
     shadow_image_infos.resize(MAX_DIRECTIONAL_LIGHTS);
@@ -251,4 +251,4 @@ void Renderer::create_directional_shadow_map_descriptor_layout()
     shadow_maps_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     shadow_maps_binding.pImmutableSamplers = nullptr;
 
-}
+} */

@@ -3,6 +3,7 @@
 #include "include.hpp"
 #include "structs.hpp"
 #include "enums.hpp"
+#include "constants.hpp"
 
 
 #ifdef NDEBUG 
@@ -21,7 +22,7 @@ const std::vector<const char*> deviceExtensions = {
 
 void create_custom_descriptor_set_layout(VkDevice device, VkDescriptorSetLayout& descriptor_set_layout, const std::vector<uint32_t>& bindings, const std::vector<uint32_t>& descriptor_counts, const std::vector<VkDescriptorType>& descriptor_types, const std::vector<VkSampler*> samplers, const std::vector<VkShaderStageFlags>& stage_flags);
 
-class DescriptorSet
+/* class DescriptorSet
 {
     public:
         DescriptorSet(uint32_t s);
@@ -39,13 +40,10 @@ class DescriptorSet
 
         void create_set_layout(VkDevice device);
 };
-
+ */
 class Renderer
 {
     private: 
-        uint32_t MAX_FRAMES_IN_FLIGHT = 3;
-        uint32_t MAX_DIRECTIONAL_LIGHTS = 4;
-
         GLFWwindow* window;
 
         VkInstance instance;
@@ -80,8 +78,6 @@ class Renderer
 
         AllocatedBuffer dir_lights_buffer;
 
-        uint32_t directional_shadow_maps_binding = 1;
-
         VkPipelineLayout main_pipeline_layout;
         VkPipeline main_pipeline;
 
@@ -99,14 +95,8 @@ class Renderer
         std::vector<RenderObject> render_objects;
         std::vector<DirectionalLight> directional_lights;
 
-        uint32_t MAX_DESCRIPTOR_SETS = 1000;
-
         VkDescriptorPool descriptor_pool;
 
-        VkDescriptorSetLayout ubo_descriptor_layout;
-        VkDescriptorSetLayout sampler_descriptor_layout;
-
-        std::vector<VkDescriptorSet> ubo_descriptor_sets;
         std::vector<VkDescriptorSet> shadow_map_descriptor_sets;
 
 
@@ -120,6 +110,9 @@ class Renderer
         std::vector<SpvReflectShaderModule*>& reflect_shader_modules; 
         std::map<uint32_t, SetLayoutInfo> set_layout_infos;
 
+
+        glm::mat4 view_matrix;
+        glm::mat4 perspective_projection_matrix;
 
         //debug functions
         void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
@@ -154,7 +147,7 @@ class Renderer
         VkShaderModule createShaderModule(const std::vector<char>& code, VkDevice device);
 
         //buffers
-        void create_buffer(size_t size);
+        void Renderer::create_and_map_buffer(size_t size,  uint32_t n_elements, VkBufferUsageFlags buffer_usage);
 
         //descriptors
         void create_descriptor_pool();
@@ -173,8 +166,8 @@ class Renderer
         void directional_shadow_pass(uint32_t current_frame);
         void create_shadow_pipeline();
         void create_shadow_sampler();
-        void create_shadow_maps(uint32_t current_frame);
-        void create_directional_shadow_map_descriptor_layout();
+        /* void create_shadow_maps(uint32_t current_frame);
+        void create_directional_shadow_map_descriptor_layout(); */
         
         //main pass
         void create_directional_light_descriptors();
