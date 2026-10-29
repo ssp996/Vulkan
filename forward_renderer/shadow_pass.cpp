@@ -115,6 +115,8 @@ void Renderer::create_shadow_pipeline()
         throw std::runtime_error("failed to create pipeline layout");
     }
 
+    resources.push_back(ResourceTypes::PipelineLayouts, directional_shadow_pipeline_layout);
+
     VkPipelineShaderStageCreateInfo vert_stage[] = {
         {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0, VK_SHADER_STAGE_VERTEX_BIT, vert_module, "main", nullptr}
     };
@@ -180,6 +182,8 @@ void Renderer::create_shadow_pipeline()
     if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &directional_shadow_pipeline) != VK_SUCCESS) {
         throw std::runtime_error("failed to create directional shadow pipeline");
     }
+
+    resources.push_back(ResourceTypes::Pipelines, directional_shadow_pipeline);
 
     vkDestroyShaderModule(device, vert_module, nullptr);
 }

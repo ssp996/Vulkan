@@ -110,9 +110,10 @@ class Renderer
         std::vector<SpvReflectShaderModule*>& reflect_shader_modules; 
         std::map<uint32_t, SetLayoutInfo> set_layout_infos;
 
-
-        glm::mat4 view_matrix;
-        glm::mat4 perspective_projection_matrix;
+        std::vector<VkFence> in_flight_fences;
+        std::vector<VkSemaphore> image_available_semaphores;
+        std::vector<VkSemaphore> render_finished_semaphores;
+        
 
         //debug functions
         void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
@@ -171,13 +172,23 @@ class Renderer
         
         //main pass
         void create_directional_light_descriptors();
-        void main_pass(uint32_t current_frame);
+        void main_pass(uint32_t current_frame, uint32_t image_index);
+        void create_main_pipeline();
 
-        
+        //sync
+        void transition_image(VkCommandBuffer cmd, VkImage image, VkImageAspectFlags aspect, VkImageLayout old_l, VkImageLayout new_l, VkPipelineStageFlags src_stage, VkAccessFlags src_access, VkPipelineStageFlags dst_stage, VkAccessFlags dst_access);
+        void create_semaphore_set(uint32_t n, std::vector<VkSemaphore> semaphores);
+        void create_fence_set(uint32_t n, std::vector<VkFence>& fences, VkFenceCreateFlagBits create_flags);
 
     public:
-        uint32_t width;
-        uint32_t height;
+        const uint32_t width;
+        const uint32_t height;
 
-        const std::string directional_shadow_vertex_shader_filepath = "shaders/directional_shadow.vert";
+        const std::string directional_shadow_vertex_shader_filepath = "shaders/directional_shadow.spv";
+
+        const std::string main_vertex_shader_filepath = "shaders/main_vertex.spv";
+        const std::string main_fragment_shader_filepath = "shaders/main_fragment.spv";
+
+        glm::mat4 view_matrix;
+        glm::mat4 perspective_projection_matrix;
 };
