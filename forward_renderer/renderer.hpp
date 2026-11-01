@@ -92,9 +92,6 @@ class Renderer
 
         Resources resources{};
 
-        std::vector<RenderObject> render_objects;
-        std::vector<DirectionalLight> directional_lights;
-
         VkDescriptorPool descriptor_pool;
 
         std::vector<VkDescriptorSet> shadow_map_descriptor_sets;
@@ -174,11 +171,13 @@ class Renderer
         void create_directional_light_descriptors();
         void main_pass(uint32_t current_frame, uint32_t image_index);
         void create_main_pipeline();
+        void update_dir_lights_ubo(uint32_t current_frame);
 
         //sync
         void transition_image(VkCommandBuffer cmd, VkImage image, VkImageAspectFlags aspect, VkImageLayout old_l, VkImageLayout new_l, VkPipelineStageFlags src_stage, VkAccessFlags src_access, VkPipelineStageFlags dst_stage, VkAccessFlags dst_access);
         void create_semaphore_set(uint32_t n, std::vector<VkSemaphore> semaphores);
         void create_fence_set(uint32_t n, std::vector<VkFence>& fences, VkFenceCreateFlagBits create_flags);
+        void draw_frame(uint32_t current_frame);
 
     public:
         const uint32_t width;
@@ -191,4 +190,7 @@ class Renderer
 
         glm::mat4 view_matrix;
         glm::mat4 perspective_projection_matrix;
+
+        std::vector<RenderObject> render_objects;
+        std::vector<DirectionalLight> directional_lights;
 };

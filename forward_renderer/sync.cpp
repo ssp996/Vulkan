@@ -55,4 +55,147 @@ void Renderer::create_fence_set(uint32_t n, std::vector<VkFence>& fences, VkFenc
 }
 
 
+void Renderer::draw_frame(uint32_t current_frame)
+{
+    vkWaitForFences(device, 1, &in_flight_fences[current_frame], VK_TRUE, UINT64_MAX);
+
+    uint32_t image_index;
+
+    if (vkAcquireNextImageKHR(device, swap_chain, UINT64_MAX, image_available_semaphores[current_frame], VK_NULL_HANDLE, &image_index) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to acquire swapchain image");
+    }
+
+    vkResetFences(device, 1, &in_flight_fences[current_frame]);
+
+    update_dir_lights_ubo(current_frame);
+
+    vkResetCommandBuffer(main_command_buffers[current_frame], 0);
+
+    VkCommandBufferBeginInfo command_buffer_begin_info{};
+    command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(main_command_buffers[current_frame], &command_buffer_begin_info);
+    
+    //transition each light's depth image from undefined -> depth attachment optimal
+    for (auto& light: directional_lights)
+    {
+        transition_image(
+            main_command_buffers[current_frame],
+            light.depth_images[current_frame],
+            VK_IMAGE_ASPECT_DEPTH_BIT,
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            0,
+            VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+            VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+        );
+    }
+
+    directional_shadow_pass(current_frame);
+
+    //transtion each light's depth image from depth attachment -> shader read only (to be sampled in main pass)
+    for (auto& light: directional_lights)
+    {
+        transition_image(
+            main_command_buffers[current_frame],
+            light.depth_images[current_frame],
+            VK_IMAGE_ASPECT_DEPTH_BIT,
+            VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, 
+            VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            VK_ACCESS_SHADER_READ_BIT
+        );
+    }
+
+    //transition depth images from undefined -> depth attachment
+    transition_image(
+        main_command_buffers[current_frame],
+        depth_images[current_frame],
+        VK_IMAGE_ASPECT_DEPTH_BIT,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        0,
+        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT 
+    );
+
+    //transition swapchain images from undefined -> color attachment 
+    transition_image(
+        main_command_buffers[current_frame],
+        swap_chain_images[image_index],
+        VK_IMAGE_ASPECT_COLOR_BIT,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        0, 
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+    );
+
+    main_pass(current_frame, image_index);
+
+    //transition layout from color attachment to presentation image
+    transition_image(
+        main_command_buffers[current_frame],
+        swap_chain_images[image_index],
+        VK_IMAGE_ASPECT_COLOR_BIT,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        0
+    );
+
+    vkEndCommandBuffer(main_command_buffers[current_frame]);
+
+    VkSemaphoreSubmitInfo wait_semaphore_info{};
+    wait_semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+    wait_semaphore_info.semaphore = image_available_semaphores[current_frame];
+    wait_semaphore_info.stageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+    VkSemaphoreSubmitInfo signal_semaphore_info{};
+    signal_semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+    signal_semaphore_info.semaphore = render_finished_semaphores[current_frame];
+    wait_semaphore_info.stageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+
+    VkCommandBufferSubmitInfo command_buffer_submit_info{};
+    command_buffer_submit_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+    command_buffer_submit_info.commandBuffer = main_command_buffers[current_frame];
+
+
+    VkSubmitInfo2 submit_info{};
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info.waitSemaphoreInfoCount = 1;
+    submit_info.pWaitSemaphoreInfos = &wait_semaphore_info;
+    submit_info.signalSemaphoreInfoCount = 1;
+    submit_info.pSignalSemaphoreInfos = &signal_semaphore_info;
+    submit_info.commandBufferInfoCount = 1;
+    submit_info.pCommandBufferInfos = &command_buffer_submit_info;
+
+    if (vkQueueSubmit2(graphics_queue, 1, &submit_info, in_flight_fences[current_frame]) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to submit queue");
+    }
+
+    VkPresentInfoKHR present_info{ VK_STRUCTURE_TYPE_PRESENT_INFO_KHR };
+    present_info.waitSemaphoreCount = 1; 
+    present_info.pWaitSemaphores = &render_finished_semaphores[image_index];
+    present_info.swapchainCount = 1;
+    present_info.pSwapchains = &swap_chain;
+    present_info.pImageIndices = &image_index;
+
+    if (vkQueuePresentKHR(present_queue, &present_info) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed present graphics queue");
+    }
+}
+
+
 

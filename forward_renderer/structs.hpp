@@ -74,6 +74,7 @@ struct AllocatedBuffer{
     VmaAllocation allocation;
     size_t padded_size;
     size_t elem_size;
+    void* mapped;
 };
 
 struct Mesh{
@@ -98,6 +99,13 @@ struct RenderObject{
     glm::mat4 model;
 };
 
+struct DirLight{ 
+    alignas(16) glm::vec3 direction;
+    alignas(16) glm::vec3 color;
+    alignas(16) float intensity;
+    alignas(16) glm::mat4 light_space_matrix;
+};
+
 struct DirectionalLight{
     glm::vec3 direction;
     glm::vec3 color;
@@ -107,6 +115,15 @@ struct DirectionalLight{
     //for shadow map
     std::vector<VkImageView> depth_image_views;
     std::vector<VkImage> depth_images;
+
+    DirLight to_gpu()
+    {
+        DirLight d{};
+        d.direction = direction;
+        d.color = color;
+        d.intensity = intensity;
+        d.light_space_matrix = light_space_matrix;
+    }
 };
 
 
@@ -146,12 +163,7 @@ struct BindingData {
     std::vector<VkDescriptorImageInfo>  images;    
 };
 
-struct DirLight{ 
-    alignas(16) glm::vec3 direction;
-    alignas(16) glm::vec3 color;
-    alignas(16) float intensity;
-    alignas(16) glm::mat4 light_space_matrix;
-};
+
 
 struct LightBufferObject{
     alignas(16) uint32_t active_lights;

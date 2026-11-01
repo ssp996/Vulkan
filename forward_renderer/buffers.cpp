@@ -24,6 +24,7 @@ void Renderer::create_and_map_buffer(size_t size,  uint32_t n_elements, VkBuffer
 
     
     VmaAllocationInfo allocation_info;
+    dir_lights_buffer.mapped = allocation_info.pMappedData;
 
     if (vmaCreateBuffer(allocator, &buffer_info, &alloc_create_info, &dir_lights_buffer.buffer, &dir_lights_buffer.allocation, &allocation_info) != VK_SUCCESS)
     {
@@ -38,7 +39,7 @@ void create_directional_light_buffer_objects(const std::vector<DirectionalLight>
     directional_light_buffer_objects.resize(n);
     for (int i = 0; i < n; i++)
     {   
-       LightBufferObject lbo{};
+        LightBufferObject lbo{};
         lbo.active_lights = static_cast<int>(directional_lights.size());
 
         for (int i = 0; i < MAX_DIRECTIONAL_LIGHTS; i++)

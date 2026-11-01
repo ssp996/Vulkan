@@ -32,6 +32,21 @@ void Renderer::create_directional_light_descriptors()
     }
 }
 
+void Renderer::update_dir_lights_ubo(uint32_t current_frame)
+{
+    LightBufferObject ubo{};
+    ubo.active_lights = static_cast<int>(directional_lights.size());
+    for (size_t i = 0; i < directional_lights.size(); ++i)
+    {
+        ubo.dir_lights[i] = directional_lights[i].to_gpu();
+    }
+
+    VkDeviceSize offset = current_frame * dir_lights_buffer.padded_size;
+    std::byte* dst = static_cast<std::byte*>(dir_lights_buffer.mapped) + offset;
+    memcpy(dst, &ubo, sizeof(LightBufferObject));
+    vmaFlushAllocation(allocator, dir_lights_buffer.allocation, offset, dir_lights_buffer.padded_size);
+}
+
 void Renderer::main_pass(uint32_t current_frame, uint32_t image_index)
 {
     VkRenderingAttachmentInfo color_attachment{};
