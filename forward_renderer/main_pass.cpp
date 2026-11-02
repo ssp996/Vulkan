@@ -7,6 +7,10 @@ void Renderer::create_directional_light_descriptors()
     allocate_descriptor_set(set_info.layout, shadow_map_descriptor_sets, static_cast<uint32_t>(swap_chain_images.size()));
 
     allocate_shadow_map_images_and_views();
+    create_image(fallback_image[0], VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, fallback_extent);
+    fallback_image_view[0] = create_depth_image_view(fallback_image[0], VK_FORMAT_D32_SFLOAT);
+
+    create_and_map_buffer(sizeof(DirLight), swap_chain_images.size(), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, dir_lights_buffer);
 
     for (int frame = 0; frame < swap_chain_images.size(); frame++)
     {
@@ -14,6 +18,18 @@ void Renderer::create_directional_light_descriptors()
         for (const auto& light: directional_lights)
         {
             frame_image_infos.push_back(make_image_info(light.depth_image_views[frame], shadow_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+        }
+
+        for (int i = 0; i < MAX_DIRECTIONAL_LIGHTS; i++)
+        {
+            if (i < directional_lights.size())
+            {
+                frame_image_infos.push_back(make_image_info(directional_lights[i].depth_image_views[frame], shadow_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+            }
+            else 
+            {
+               frame_image_infos.push_back(make_image_info(fallback_image_view[0], shadow_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)); 
+            }
         }
 
         BindingData sampler_bd{};
@@ -36,6 +52,7 @@ void Renderer::update_dir_lights_ubo(uint32_t current_frame)
 {
     LightBufferObject ubo{};
     ubo.active_lights = static_cast<int>(directional_lights.size());
+    ubo.camera_pos = camera_pos;
     for (size_t i = 0; i < directional_lights.size(); ++i)
     {
         ubo.dir_lights[i] = directional_lights[i].to_gpu();
@@ -113,15 +130,25 @@ void Renderer::main_pass(uint32_t current_frame, uint32_t image_index)
 
     vkCmdBindDescriptorSets(main_command_buffers[current_frame], VK_PIPELINE_BIND_POINT_GRAPHICS, main_pipeline_layout, 0, 1, &shadow_map_descriptor_sets[current_frame], 0, nullptr);
 
+    glm::mat4 vp = perspective_projection_matrix * view_matrix; //later create a camera class which owns the view matrix (push constant limited to vertex shader)
+
     for (const auto& object: render_objects)
     {
         VkDeviceSize offsets = 0;
         vkCmdBindVertexBuffers(main_command_buffers[current_frame], 0, 1, &object.mesh->vertex_buffer.buffer, &offsets);
         vkCmdBindIndexBuffer(main_command_buffers[current_frame], object.mesh->index_buffer.buffer, 0, VK_INDEX_TYPE_UINT16);
 
-        glm::mat4 mvp = object.model * view_matrix * perspective_projection_matrix; //later create a camera class which owns the view matrix (push constant limited to vertex shader)
+        VertexShaderPc pc{};
+        uint32_t has_texture = object.has_texture;
 
-        vkCmdPushConstants(main_command_buffers[current_frame], main_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &mvp);
+        pc.vp = vp;
+
+        pc.r0 = glm::row(object.model, 0);
+        pc.r1 = glm::row(object.model, 1);
+        pc.r2 = glm::row(object.model, 2);
+
+        vkCmdPushConstants(main_command_buffers[current_frame], main_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(VertexShaderPc), &pc);
+        vkCmdPushConstants(main_command_buffers[current_frame], main_pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 112, sizeof(has_texture), &has_texture);
 
         vkCmdDrawIndexed(main_command_buffers[current_frame], object.mesh->index_count, 1, 0, 0, 0);  
     }
@@ -249,17 +276,25 @@ void Renderer::create_main_pipeline()
     dynamic_state.dynamicStateCount = static_cast<uint32_t>(dynamic_states.size());
     dynamic_state.pDynamicStates = dynamic_states.data();
 
-    VkPushConstantRange push_constant{};
-    push_constant.offset = 0;
-    push_constant.size = sizeof(glm::mat4);
-    push_constant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    VkPushConstantRange push_constant1{};
+    push_constant1.offset = 0;
+    push_constant1.size = sizeof(VertexShaderPc);
+    push_constant1.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    VkPushConstantRange push_constant2{};
+    push_constant2.offset = 112;
+    push_constant2.size = sizeof(uint32_t);
+    push_constant2.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkPushConstantRange push_constant_ranges[] = {push_constant1, push_constant2};
 
     VkPipelineLayoutCreateInfo pipeline_layout_info{};
     pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipeline_layout_info.setLayoutCount = 1;
+    pipeline_layout_info.setLayoutCount = 2;
     pipeline_layout_info.pSetLayouts = &set_layout_infos.at(0).layout;
     pipeline_layout_info.pushConstantRangeCount = 1;
-    pipeline_layout_info.pPushConstantRanges = &push_constant;
+    pipeline_layout_info.pPushConstantRanges = push_constant_ranges;
 
     if (vkCreatePipelineLayout(device, &pipeline_layout_info, nullptr, &main_pipeline_layout) != VK_SUCCESS)
     {

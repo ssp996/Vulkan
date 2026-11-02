@@ -69,13 +69,13 @@ VkImageView Renderer::create_depth_image_view(VkImage image, VkFormat format)
     return image_view;
 }
 
-void Renderer::create_image(VkImage& image, VkFormat format, VkImageUsageFlags usage) 
+void Renderer::create_image(VkImage& image, VkFormat format, VkImageUsageFlags usage, VkExtent2D extent) 
 {
     VkImageCreateInfo image_info{};
     image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     image_info.imageType = VK_IMAGE_TYPE_2D;
-    image_info.extent.width = width;
-    image_info.extent.height = height;
+    image_info.extent.width = extent.width;
+    image_info.extent.height = extent.height;
     image_info.extent.depth = 1;
     image_info.mipLevels = 1;
     image_info.arrayLayers = 1;
@@ -112,7 +112,7 @@ void Renderer::allocate_shadow_map_images_and_views()
     {
         for (int i = 0; i < swap_chain_images.size(); i++)
         {
-            create_image(light.depth_images[i], shadow_map_format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
+            create_image(light.depth_images[i], shadow_map_format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, swap_chain_extent);
             light.depth_image_views[i] = create_depth_image_view(light.depth_images[i], shadow_map_format);
         }
     }
@@ -124,7 +124,7 @@ void Renderer::allocate_depth_image_views()
 
     for (int i = 0; i < swap_chain_images.size(); i++)
     {
-        create_image(depth_images[i], depth_format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
+        create_image(depth_images[i], depth_format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, swap_chain_extent);
         depth_image_views[i] = create_depth_image_view(depth_images[i], depth_format);
     }
 }

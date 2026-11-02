@@ -1,6 +1,6 @@
 #include "renderer.hpp"
 
-void Renderer::create_and_map_buffer(size_t size,  uint32_t n_elements, VkBufferUsageFlags buffer_usage)
+void Renderer::create_and_map_buffer(size_t size,  uint32_t n_elements, VkBufferUsageFlags buffer_usage, AllocatedBuffer& buffer)
 {
     VkPhysicalDeviceProperties properties;
     vkGetPhysicalDeviceProperties(physical_device, &properties);
@@ -24,32 +24,29 @@ void Renderer::create_and_map_buffer(size_t size,  uint32_t n_elements, VkBuffer
 
     
     VmaAllocationInfo allocation_info;
-    dir_lights_buffer.mapped = allocation_info.pMappedData;
+    buffer.mapped = allocation_info.pMappedData;
 
-    if (vmaCreateBuffer(allocator, &buffer_info, &alloc_create_info, &dir_lights_buffer.buffer, &dir_lights_buffer.allocation, &allocation_info) != VK_SUCCESS)
+    if (vmaCreateBuffer(allocator, &buffer_info, &alloc_create_info, &buffer.buffer, &buffer.allocation, &allocation_info) != VK_SUCCESS)
     {
         throw std::runtime_error ("failed to create buffer");
     }
 
-    resources.push_back(ResourceTypes::AllocatedBuffer, dir_lights_buffer);
+    resources.push_back(ResourceTypes::AllocatedBuffer, buffer);
 }
 
-void create_directional_light_buffer_objects(const std::vector<DirectionalLight>& directional_lights, uint32_t n, std::vector<LightBufferObject> directional_light_buffer_objects)
+void Renderer::create_directional_light_buffer_objects(uint32_t n)
 {
-    directional_light_buffer_objects.resize(n);
     for (int i = 0; i < n; i++)
-    {   
+    {
         LightBufferObject lbo{};
         lbo.active_lights = static_cast<int>(directional_lights.size());
+        lbo.camera_pos = camera_pos;
 
         for (int i = 0; i < MAX_DIRECTIONAL_LIGHTS; i++)
         {
             if (i < directional_lights.size())
             {
-                lbo.dir_lights[i].color = directional_lights[i].color;
-                lbo.dir_lights[i].direction = directional_lights[i].direction;
-                lbo.dir_lights[i].intensity = directional_lights[i].intensity;
-                lbo.dir_lights[i].light_space_matrix = directional_lights[i].light_space_matrix;
+                lbo.dir_lights[i] = directional_lights[i].to_gpu();
             }
             else
             { 

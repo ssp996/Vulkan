@@ -97,6 +97,7 @@ struct Transform{
 struct RenderObject{
     Mesh* mesh;
     glm::mat4 model;
+    uint32_t has_texture;
 };
 
 struct DirLight{ 
@@ -130,6 +131,23 @@ struct DirectionalLight{
 struct DirectionalLightPushConstant{
     alignas(16) glm::mat4 model;
     alignas(16) glm::mat4 light_space_matrix;
+};
+
+struct Mat4IntPc{
+    alignas(16) glm::mat4 mvp;
+    alignas(16) uint32_t has_texture;
+};
+
+struct Mat4Mat4Pc{
+    alignas(16) glm::mat4 m1;
+    alignas(16) glm::mat4 m2;
+};
+
+struct VertexShaderPc{
+    glm::vec4 r0;
+    glm::vec4 r1;
+    glm::vec4 r2;
+    glm::mat4 vp;
 };
 
 struct DescriptorInfo{
@@ -167,6 +185,7 @@ struct BindingData {
 
 struct LightBufferObject{
     alignas(16) uint32_t active_lights;
-    alignas(16)  DirLight dir_lights[MAX_DIRECTIONAL_LIGHTS];
+    alignas(16) glm::vec3 camera_pos;
+    alignas(16) DirLight dir_lights[MAX_DIRECTIONAL_LIGHTS];
 };
 

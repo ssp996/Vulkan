@@ -18,7 +18,7 @@ layout(input_attachment_index = 0, set = 1, binding = 0) uniform subpassInput in
 layout(input_attachment_index = 1, set = 1, binding = 1) uniform subpassInput inputNormal;
 layout(input_attachment_index = 2, set = 1, binding = 2) uniform subpassInput inputAlbedo;
 
-layout(set = 2, binding = 0) uniform sampler2DShadow shadow_map;
+layout(set = 0, binding = 2) uniform sampler2DShadow shadow_map;
 
 layout(location = 0) in vec2 inUV;
 

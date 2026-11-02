@@ -2,8 +2,31 @@
 
 void Renderer::directional_shadow_pass(uint32_t current_frame)
 {
+
+    vkCmdBindPipeline(main_command_buffers[current_frame], VK_PIPELINE_BIND_POINT_GRAPHICS, directional_shadow_pipeline);
+
+    VkViewport viewport{};
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width = static_cast<float>(directional_shadow_map_extent.width);
+    viewport.height = static_cast<float>(directional_shadow_map_extent.height);
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    vkCmdSetViewport(main_command_buffers[current_frame], 0, 1, &viewport);
+
+    VkRect2D scissor{};
+    scissor.offset = {0, 0};
+    scissor.extent = directional_shadow_map_extent;
+    vkCmdSetScissor(main_command_buffers[current_frame], 0, 1, &scissor);
+
+    float depthBiasConstant = 1.25f;
+    float depthBiasSlope = 1.75f;
+    vkCmdSetDepthBias(main_command_buffers[current_frame], depthBiasConstant, 0.0f, depthBiasSlope);
+
     for (int i = 0; i < directional_lights.size(); i++)
     {
+        if (directional_lights.empty()) return;
+
         VkRenderingAttachmentInfo depth_attachment{};
 
         depth_attachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -24,27 +47,6 @@ void Renderer::directional_shadow_pass(uint32_t current_frame)
         directional_shadow_pass_rendering_info.pDepthAttachment = &depth_attachment;
 
         vkCmdBeginRendering(main_command_buffers[current_frame], &directional_shadow_pass_rendering_info);
-
-        vkCmdBindPipeline(main_command_buffers[current_frame], VK_PIPELINE_BIND_POINT_GRAPHICS, directional_shadow_pipeline);
-
-        VkViewport viewport{};
-        viewport.x = 0.0f;
-        viewport.y = 0.0f;
-        viewport.width = static_cast<float>(directional_shadow_map_extent.width);
-        viewport.height = static_cast<float>(directional_shadow_map_extent.height);
-        viewport.minDepth = 0.0f;
-        viewport.maxDepth = 1.0f;
-        vkCmdSetViewport(main_command_buffers[current_frame], 0, 1, &viewport);
-
-        VkRect2D scissor{};
-        scissor.offset = {0, 0};
-        scissor.extent = directional_shadow_map_extent;
-        vkCmdSetScissor(main_command_buffers[current_frame], 0, 1, &scissor);
-
-        float depthBiasConstant = 1.25f;
-        float depthBiasSlope = 1.75f;
-        vkCmdSetDepthBias(main_command_buffers[current_frame], depthBiasConstant, 0.0f, depthBiasSlope);
-
     
         for (int j = 0; j < render_objects.size(); j++)
         {

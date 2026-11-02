@@ -19,6 +19,7 @@
 #include <format>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/matrix_access.hpp>
 #include <unordered_map>
 #include <any>
 #include <map>

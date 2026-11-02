@@ -68,6 +68,10 @@ class Renderer
         std::vector<VkImageView> depth_image_views;
         std::vector<VkImage> depth_images;
 
+        std::vector<VkImage> fallback_image; //allocate with format VK_FORMAT_D32_SFLOAT clear to 1.0f
+        std::vector<VkImageView> fallback_image_view;
+        VkExtent2D fallback_extent = {1, 1};
+
         VkFormat shadow_map_format = VK_FORMAT_D32_SFLOAT;
         VkExtent2D directional_shadow_map_extent = {2048, 2048};
         VkPipelineLayout directional_shadow_pipeline_layout;
@@ -95,6 +99,7 @@ class Renderer
         VkDescriptorPool descriptor_pool;
 
         std::vector<VkDescriptorSet> shadow_map_descriptor_sets;
+        std::vector<VkDescriptorSet> vertex_shader_descriptor_set;
 
 
         //spirv reflect
@@ -110,6 +115,9 @@ class Renderer
         std::vector<VkFence> in_flight_fences;
         std::vector<VkSemaphore> image_available_semaphores;
         std::vector<VkSemaphore> render_finished_semaphores;
+        
+        std::vector<LightBufferObject> lbos;
+
         
 
         //debug functions
@@ -136,7 +144,7 @@ class Renderer
         //image views and images
         VkImageView create_swap_chain_image_view(VkImage image, VkFormat format);
         VkImageView create_depth_image_view(VkImage image, VkFormat format);
-        void create_image(VkImage& image, VkFormat format, VkImageUsageFlags usage);
+        void create_image(VkImage& image, VkFormat format, VkImageUsageFlags usage, VkExtent2D extent);
         void allocate_shadow_map_images_and_views();
         void allocate_depth_image_views();
 
@@ -145,7 +153,9 @@ class Renderer
         VkShaderModule createShaderModule(const std::vector<char>& code, VkDevice device);
 
         //buffers
-        void Renderer::create_and_map_buffer(size_t size,  uint32_t n_elements, VkBufferUsageFlags buffer_usage);
+        void Renderer::create_and_map_buffer(size_t size,  uint32_t n_elements, VkBufferUsageFlags buffer_usage, AllocatedBuffer& buffer);
+        void create_directional_light_buffer_objects(uint32_t n);
+
 
         //descriptors
         void create_descriptor_pool();
@@ -169,6 +179,7 @@ class Renderer
         
         //main pass
         void create_directional_light_descriptors();
+        void create_vertex_shader_descriptor();
         void main_pass(uint32_t current_frame, uint32_t image_index);
         void create_main_pipeline();
         void update_dir_lights_ubo(uint32_t current_frame);
@@ -180,6 +191,8 @@ class Renderer
         void draw_frame(uint32_t current_frame);
 
     public:
+        Renderer();
+
         const uint32_t width;
         const uint32_t height;
 
@@ -190,6 +203,7 @@ class Renderer
 
         glm::mat4 view_matrix;
         glm::mat4 perspective_projection_matrix;
+        glm::vec3 camera_pos;
 
         std::vector<RenderObject> render_objects;
         std::vector<DirectionalLight> directional_lights;
