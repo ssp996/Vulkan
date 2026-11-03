@@ -1,6 +1,6 @@
 #include "renderer.hpp"
 
-std::vector<char> readFile(const std::string& filepath)
+std::vector<char> Renderer::readFile(const std::string& filepath)
 {
   std::ifstream file(filepath, std::ios::ate | std::ios::binary);
 

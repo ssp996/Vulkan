@@ -15,6 +15,7 @@ struct DirLight {
 };
 
 layout(set = 0, binding = 0) uniform LightUBO{
+    vec3 camera_pos;
     uint active_lights;
     DirLight[MAX_DIR_LIGHTS];
 }lbo;
@@ -51,6 +52,5 @@ vec3 CalcDirLight(DirLight light, vec3 normal, vec3 viewDir, sampler2D shadowMap
 
 void main()
 {
-    vec3 norm = normalize(inNormal);
     
 }

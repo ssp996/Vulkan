@@ -10,7 +10,11 @@ void Renderer::create_directional_light_descriptors()
     create_image(fallback_image[0], VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, fallback_extent);
     fallback_image_view[0] = create_depth_image_view(fallback_image[0], VK_FORMAT_D32_SFLOAT);
 
-    create_and_map_buffer(sizeof(DirLight), swap_chain_images.size(), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, dir_lights_buffer);
+    create_and_map_descriptor_buffer(sizeof(DirLight), swap_chain_images.size(), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, dir_lights_buffer);
+    for (uint32_t i = 0; i < swap_chain_images.size(); i++)
+    {
+        update_dir_lights_ubo(i);
+    }
 
     for (int frame = 0; frame < swap_chain_images.size(); frame++)
     {

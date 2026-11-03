@@ -1,6 +1,39 @@
 #include "include.hpp"
 #include "renderer.hpp"
 
+void Renderer::create_command_pool()
+{
+    QueueFamilyIndices queue_families = findQueueFamilies(physical_device);
+
+    VkCommandPoolCreateInfo command_pool_create_info{};
+    command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    command_pool_create_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    command_pool_create_info.queueFamilyIndex = queue_families.graphicsFamily.value();
+
+    if (vkCreateCommandPool(device, &command_pool_create_info, nullptr, &command_pool) != VK_SUCCESS) 
+    {
+        throw std::runtime_error("failed to create command pool");
+    }
+
+    resources.push_back(ResourceTypes::CommandPools, command_pool);
+}
+
+void Renderer::create_command_buffers()
+{
+    main_command_buffers.resize(swap_chain_images.size());
+
+    VkCommandBufferAllocateInfo command_buffer_allocate_info{};
+    command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    command_buffer_allocate_info.commandPool = command_pool;
+    command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    command_buffer_allocate_info.commandBufferCount = (uint32_t)main_command_buffers.size();
+
+    if (vkAllocateCommandBuffers(device, &command_buffer_allocate_info, main_command_buffers.data()) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create command buffer");
+    }
+}
+
 void Renderer::transition_image(VkCommandBuffer cmd, VkImage image, VkImageAspectFlags aspect, VkImageLayout old_layout, VkImageLayout new_layout, VkPipelineStageFlags src_stage, VkAccessFlags src_access, VkPipelineStageFlags dst_stage, VkAccessFlags dst_access)
 {
     VkImageMemoryBarrier b{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
@@ -57,6 +90,8 @@ void Renderer::create_fence_set(uint32_t n, std::vector<VkFence>& fences, VkFenc
 
 void Renderer::draw_frame(uint32_t current_frame)
 {
+    time = glfwGetTime();
+
     vkWaitForFences(device, 1, &in_flight_fences[current_frame], VK_TRUE, UINT64_MAX);
 
     uint32_t image_index;

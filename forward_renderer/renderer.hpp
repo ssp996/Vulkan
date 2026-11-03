@@ -44,8 +44,6 @@ void create_custom_descriptor_set_layout(VkDevice device, VkDescriptorSetLayout&
 class Renderer
 {
     private: 
-        GLFWwindow* window;
-
         VkInstance instance;
         VkDebugUtilsMessengerEXT debug_messenger;
         VkSurfaceKHR surface;
@@ -65,6 +63,7 @@ class Renderer
         std::vector<VkImageView> swap_chain_image_views;
         std::vector<VkFramebuffer> swap_chain_frame_buffers;
 
+        VkFormat depth_format;
         std::vector<VkImageView> depth_image_views;
         std::vector<VkImage> depth_images;
 
@@ -88,12 +87,6 @@ class Renderer
         VkCommandPool command_pool;
         std::vector<VkCommandBuffer> main_command_buffers;
 
-        std::vector<VkSemaphore> shadow_pass_finished_semaphores;
-        std::vector<VkSemaphore> image_available_semaphores;
-        std::vector<VkSemaphore> render_finished_semaphores;
-
-        std::vector<VkFence> in_flight_fences;
-
         Resources resources{};
 
         VkDescriptorPool descriptor_pool;
@@ -109,7 +102,9 @@ class Renderer
         std::vector<VkDescriptorSetLayout> descriptor_set_layouts;
         std::vector<std::vector<VkDescriptorSet>> descriptor_sets;*/
 
-        std::vector<SpvReflectShaderModule*>& reflect_shader_modules; 
+        std::vector<std::vector<char>> shader_codes;
+
+        std::vector<SpvReflectShaderModule*> reflect_shader_modules; 
         std::map<uint32_t, SetLayoutInfo> set_layout_infos;
 
         std::vector<VkFence> in_flight_fences;
@@ -118,7 +113,7 @@ class Renderer
         
         std::vector<LightBufferObject> lbos;
 
-        
+        float time;
 
         //debug functions
         void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
@@ -153,10 +148,9 @@ class Renderer
         VkShaderModule createShaderModule(const std::vector<char>& code, VkDevice device);
 
         //buffers
-        void Renderer::create_and_map_buffer(size_t size,  uint32_t n_elements, VkBufferUsageFlags buffer_usage, AllocatedBuffer& buffer);
+        void create_and_map_descriptor_buffer(size_t size,  uint32_t n_elements, VkBufferUsageFlags buffer_usage, AllocatedBuffer& buffer);
+        void create_and_map_vertex_buffer(const std::vector<Vertex>& vertices, std::vector<uint16_t> indices, Mesh& mesh);
         void create_directional_light_buffer_objects(uint32_t n);
-
-
         //descriptors
         void create_descriptor_pool();
         void allocate_descriptor_set(VkDescriptorSetLayout layout, std::vector<VkDescriptorSet>& descriptor_sets, uint32_t n);
@@ -167,7 +161,7 @@ class Renderer
 
         void write_set(VkDescriptorSet set, const SetLayoutInfo& set_layout_info, const std::vector<BindingData>& binding_data);
 
-        std::map<uint32_t, SetLayoutInfo> Renderer::build_set_layouts();
+        std::map<uint32_t, SetLayoutInfo> build_set_layouts();
 
 
         //shadow pass
@@ -185,26 +179,44 @@ class Renderer
         void update_dir_lights_ubo(uint32_t current_frame);
 
         //sync
+        void create_command_pool();
+        void create_command_buffers();
         void transition_image(VkCommandBuffer cmd, VkImage image, VkImageAspectFlags aspect, VkImageLayout old_l, VkImageLayout new_l, VkPipelineStageFlags src_stage, VkAccessFlags src_access, VkPipelineStageFlags dst_stage, VkAccessFlags dst_access);
         void create_semaphore_set(uint32_t n, std::vector<VkSemaphore> semaphores);
         void create_fence_set(uint32_t n, std::vector<VkFence>& fences, VkFenceCreateFlagBits create_flags);
-        void draw_frame(uint32_t current_frame);
 
     public:
         Renderer();
 
-        const uint32_t width;
-        const uint32_t height;
+        const uint32_t width = 800;
+        const uint32_t height = 800;
 
         const std::string directional_shadow_vertex_shader_filepath = "shaders/directional_shadow.spv";
 
         const std::string main_vertex_shader_filepath = "shaders/main_vertex.spv";
         const std::string main_fragment_shader_filepath = "shaders/main_fragment.spv";
 
-        glm::mat4 view_matrix;
-        glm::mat4 perspective_projection_matrix;
-        glm::vec3 camera_pos;
+        glm::mat4 get_projection_matrix();
+        glm::mat4 get_view_matrix();
+
+        glm::mat4 view_matrix = get_view_matrix();
+ 
+        glm::mat4 perspective_projection_matrix = get_projection_matrix();
+        glm::vec3 camera_pos = glm::vec3(0.0f, 0.0f, 0.0f);
 
         std::vector<RenderObject> render_objects;
         std::vector<DirectionalLight> directional_lights;
+
+        GLFWwindow* window;
+
+        void init();
+        
+        float get_time();
+
+        void draw_frame(uint32_t current_frame);
+
+        DirectionalLight create_directional_light(glm::vec3 direction, glm::vec3 color, float intensity);
+        RenderObject create_render_object(std::vector<glm::vec3>& positions, std::vector<glm::vec3>& colors, std::vector<glm::vec3>& normals, std::vector<glm::vec2>& uvs, std::vector<uint16_t>& indices, uint32_t has_texture);
+        RenderObject create_render_object_vertices(std::vector<Vertex>& vertices, std::vector<uint16_t>& indices, uint32_t has_texture);
+
 };

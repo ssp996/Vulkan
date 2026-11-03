@@ -210,6 +210,8 @@ void Renderer::create_shadow_sampler()
     {
         throw std::runtime_error("failed to create shadow sampler");
     }
+
+    resources.push_back(ResourceTypes::Samplers, shadow_sampler);
 }
 
 /* void Renderer::create_shadow_maps(uint32_t current_frame)

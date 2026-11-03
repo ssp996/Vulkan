@@ -124,6 +124,8 @@ struct DirectionalLight{
         d.color = color;
         d.intensity = intensity;
         d.light_space_matrix = light_space_matrix;
+
+        return d;
     }
 };
 

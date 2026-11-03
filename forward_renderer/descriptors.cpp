@@ -248,6 +248,8 @@ std::map<uint32_t, SetLayoutInfo> Renderer::build_set_layouts()
         {
             throw std::runtime_error(std::format("failed to create descriptor set layout: {}", info.set));
         }
+
+        resources.push_back(ResourceTypes::DescriptorSetLayouts, info.layout);
     }
 
     return out;
