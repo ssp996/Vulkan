@@ -108,11 +108,11 @@ void Renderer::create_image(VkImage& image, VkFormat format, VkImageUsageFlags u
 
 void Renderer::allocate_shadow_map_images_and_views()
 {
-    for (auto light : directional_lights)
+    for (auto& light : directional_lights)
     {
         for (int i = 0; i < swap_chain_images.size(); i++)
         {
-            create_image(light.depth_images[i], shadow_map_format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, swap_chain_extent);
+            create_image(light.depth_images[i], shadow_map_format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, directional_shadow_map_extent);
             light.depth_image_views[i] = create_depth_image_view(light.depth_images[i], shadow_map_format);
         }
     }
@@ -121,6 +121,9 @@ void Renderer::allocate_shadow_map_images_and_views()
 void Renderer::allocate_depth_image_views()
 {
     VkFormat depth_format = find_depth_format(physical_device);
+
+    depth_images.resize(swap_chain_images.size());
+    depth_image_views.resize(swap_chain_images.size());
 
     for (int i = 0; i < swap_chain_images.size(); i++)
     {

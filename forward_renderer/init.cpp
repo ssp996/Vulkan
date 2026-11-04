@@ -84,7 +84,7 @@ void Renderer::pick_physical_device()
     }
 
     if (physical_device == VK_NULL_HANDLE) {
-        throw std::runtime_error("failed to find a suitable GPU!");
+        throw std::runtime_error("failed to find a suitable GPU");
     }
 }
 
@@ -122,6 +122,16 @@ void Renderer::create_logical_device()
 
     VkPhysicalDeviceFeatures deviceFeatures{};
 
+    /* VkPhysicalDeviceDynamicRenderingFeatures dynamic_rendering_feature{};
+    dynamic_rendering_feature.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
+    dynamic_rendering_feature.dynamicRendering = VK_TRUE; */
+
+    VkPhysicalDeviceVulkan13Features features13{};
+    features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    features13.dynamicRendering = VK_TRUE; 
+    features13.synchronization2 = VK_TRUE;
+    /* features13.pNext = &dynamic_rendering_feature; */
+
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
@@ -132,13 +142,14 @@ void Renderer::create_logical_device()
 
     createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
     createInfo.ppEnabledExtensionNames = deviceExtensions.data();
+    createInfo.pNext = &features13;
 
-    if (enableValidationLayers) {
+    /* if (enableValidationLayers) {
         createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
         createInfo.ppEnabledLayerNames = validationLayers.data();
-    } else {
-        createInfo.enabledLayerCount = 0;
-    }
+    } else { */
+    createInfo.enabledLayerCount = 0;
+    //}
 
     if (vkCreateDevice(physical_device, &createInfo, nullptr, &device) != VK_SUCCESS) {
         throw std::runtime_error("failed to create logical device!");

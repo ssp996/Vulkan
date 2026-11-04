@@ -22,4 +22,6 @@
 #include <glm/gtc/matrix_access.hpp>
 #include <unordered_map>
 #include <any>
+#include <typeinfo>
+#include <memory>
 #include <map>

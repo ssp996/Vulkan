@@ -30,6 +30,8 @@ void Renderer::create_and_map_descriptor_buffer(size_t size,  uint32_t n_element
     }
 
     buffer.mapped = allocation_info.pMappedData;
+    buffer.padded_size = padded_size;
+    buffer.elem_size = size;
 
     resources.push_back(ResourceTypes::AllocatedBuffer, buffer);
 }
@@ -58,7 +60,7 @@ void Renderer::create_and_map_vertex_buffer(const std::vector<Vertex>& vertices,
     std::byte* dst = static_cast<std::byte*>(mesh.vertex_buffer.mapped);
     memcpy(dst, vertices.data(), sizeof(vertices[0]) * vertices.size());
 
-    resources.push_back(ResourceTypes::AllocatedBuffer, mesh.vertex_buffer.buffer);
+    resources.push_back(ResourceTypes::AllocatedBuffer, mesh.vertex_buffer);
 
     buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     buffer_create_info.size = sizeof(indices[0]) * indices.size();
@@ -78,7 +80,7 @@ void Renderer::create_and_map_vertex_buffer(const std::vector<Vertex>& vertices,
     dst = static_cast<std::byte*>(mesh.index_buffer.mapped);
     memcpy(dst, indices.data(), sizeof(indices[0]) * indices.size());
 
-    resources.push_back(ResourceTypes::AllocatedBuffer, mesh.index_buffer.buffer);
+    resources.push_back(ResourceTypes::AllocatedBuffer, mesh.index_buffer);
 }
 
 void Renderer::create_directional_light_buffer_objects(uint32_t n)

@@ -1,5 +1,60 @@
 #include "renderer.hpp"
 
+void Renderer::fallback_fix()
+{
+    fallback_image.resize(1);
+    fallback_image_view.resize(1);
+
+    VkExtent2D lfallback_extent = {1, 1};
+
+    create_image(fallback_image[0], VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, lfallback_extent);
+    fallback_image_view[0] = create_depth_image_view(fallback_image[0], VK_FORMAT_D32_SFLOAT);
+
+    //transitioning the fallback image to SHADER_READ_ONLY_OPTIMAL immediately
+    VkCommandBufferAllocateInfo alloc_info{};
+    alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    alloc_info.commandPool = command_pool;
+    alloc_info.commandBufferCount = 1;
+
+    VkCommandBuffer temp_cmd;
+    vkAllocateCommandBuffers(device, &alloc_info, &temp_cmd);
+
+    VkCommandBufferBeginInfo begin_info{};
+    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(temp_cmd, &begin_info);
+
+    transition_image(
+        temp_cmd,
+        fallback_image[0],
+        VK_IMAGE_ASPECT_DEPTH_BIT,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+        VK_ACCESS_2_NONE,
+        VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+        VK_ACCESS_2_SHADER_READ_BIT
+    );
+
+    vkEndCommandBuffer(temp_cmd);
+
+    VkCommandBufferSubmitInfo cmd_submit{};
+    cmd_submit.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+    cmd_submit.commandBuffer = temp_cmd;
+
+    VkSubmitInfo2 submit{};
+    submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+    submit.commandBufferInfoCount = 1;
+    submit.pCommandBufferInfos = &cmd_submit;
+
+    vkQueueSubmit2(graphics_queue, 1, &submit, VK_NULL_HANDLE);
+    vkQueueWaitIdle(graphics_queue);
+
+    vkFreeCommandBuffers(device, command_pool, 1, &temp_cmd);
+}
+
+
 void Renderer::create_directional_light_descriptors()
 {
     const SetLayoutInfo& set_info = set_layout_infos.at(0);
@@ -7,10 +62,10 @@ void Renderer::create_directional_light_descriptors()
     allocate_descriptor_set(set_info.layout, shadow_map_descriptor_sets, static_cast<uint32_t>(swap_chain_images.size()));
 
     allocate_shadow_map_images_and_views();
-    create_image(fallback_image[0], VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, fallback_extent);
-    fallback_image_view[0] = create_depth_image_view(fallback_image[0], VK_FORMAT_D32_SFLOAT);
 
-    create_and_map_descriptor_buffer(sizeof(DirLight), swap_chain_images.size(), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, dir_lights_buffer);
+    fallback_fix();
+
+    create_and_map_descriptor_buffer(sizeof(LightBufferObject), swap_chain_images.size(), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, dir_lights_buffer);
     for (uint32_t i = 0; i < swap_chain_images.size(); i++)
     {
         update_dir_lights_ubo(i);
@@ -19,15 +74,13 @@ void Renderer::create_directional_light_descriptors()
     for (int frame = 0; frame < swap_chain_images.size(); frame++)
     {
         std::vector<VkDescriptorImageInfo> frame_image_infos;
-        for (const auto& light: directional_lights)
-        {
-            frame_image_infos.push_back(make_image_info(light.depth_image_views[frame], shadow_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-        }
-
+        
         for (int i = 0; i < MAX_DIRECTIONAL_LIGHTS; i++)
         {
             if (i < directional_lights.size())
             {
+                assert(directional_lights[i].depth_image_views[frame] != VK_NULL_HANDLE && "active light has a null image view");
+
                 frame_image_infos.push_back(make_image_info(directional_lights[i].depth_image_views[frame], shadow_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
             }
             else 
@@ -37,17 +90,19 @@ void Renderer::create_directional_light_descriptors()
         }
 
         BindingData sampler_bd{};
-        sampler_bd.name = "dirShadowMaps";
+        sampler_bd.name = "shadow_maps";
         sampler_bd.buffers = {};
         sampler_bd.images = frame_image_infos;
 
         BindingData light_buffer_object_bd{};
-        light_buffer_object_bd.name = "dirLights";
+        light_buffer_object_bd.name = "lbo";
         light_buffer_object_bd.images = {};
+        std::cout << "elem size: " << dir_lights_buffer.elem_size << " | " << "padded size: " << dir_lights_buffer.padded_size <<  std::endl;
         light_buffer_object_bd.buffers = {make_buffer_info(dir_lights_buffer, frame)};
 
+
         std::vector<BindingData> binding_data = {sampler_bd, light_buffer_object_bd};
-        
+
         write_set(shadow_map_descriptor_sets[frame], set_info, binding_data);
     }
 }
@@ -64,6 +119,9 @@ void Renderer::update_dir_lights_ubo(uint32_t current_frame)
 
     VkDeviceSize offset = current_frame * dir_lights_buffer.padded_size;
     std::byte* dst = static_cast<std::byte*>(dir_lights_buffer.mapped) + offset;
+
+    assert(dir_lights_buffer.mapped != nullptr && "VMA memory was never mapped");
+
     memcpy(dst, &ubo, sizeof(LightBufferObject));
     vmaFlushAllocation(allocator, dir_lights_buffer.allocation, offset, dir_lights_buffer.padded_size);
 }
@@ -76,7 +134,9 @@ void Renderer::main_pass(uint32_t current_frame, uint32_t image_index)
 
     color_attachment.clearValue.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
     color_attachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
     color_attachment.imageView = swap_chain_image_views[image_index];
+
 
     color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -92,13 +152,13 @@ void Renderer::main_pass(uint32_t current_frame, uint32_t image_index)
     depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 
-    VkRenderingAttachmentInfo stencil_attachment{};
+    /* VkRenderingAttachmentInfo stencil_attachment{};
     stencil_attachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
     stencil_attachment.imageView = depth_image_views[current_frame];          
     stencil_attachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     stencil_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     stencil_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    stencil_attachment.clearValue.depthStencil = {1.0f, 0};           
+    stencil_attachment.clearValue.depthStencil = {1.0f, 0};          */  
 
     VkRenderingInfo main_pass_rendering_info{};
     main_pass_rendering_info.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
@@ -109,8 +169,7 @@ void Renderer::main_pass(uint32_t current_frame, uint32_t image_index)
     main_pass_rendering_info.pColorAttachments = &color_attachment;
 
     main_pass_rendering_info.pDepthAttachment = &depth_attachment;
-    main_pass_rendering_info.pStencilAttachment = &stencil_attachment;
-
+    main_pass_rendering_info.pStencilAttachment = nullptr;
     main_pass_rendering_info.renderArea.extent = swap_chain_extent;
     main_pass_rendering_info.renderArea.offset = {0, 0};
 
@@ -169,6 +228,15 @@ void Renderer::create_main_pipeline()
     VkShaderModule vert_module = createShaderModule(vert_code, device);
     VkShaderModule frag_module = createShaderModule(frag_code, device);
 
+    VkFormat color_format = VK_FORMAT_B8G8R8A8_SRGB; 
+    VkFormat depth_format = VK_FORMAT_D32_SFLOAT;    
+
+    VkPipelineRenderingCreateInfo pipeline_rendering_create_info{};
+    pipeline_rendering_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+    pipeline_rendering_create_info.colorAttachmentCount = 1; 
+    pipeline_rendering_create_info.pColorAttachmentFormats = &color_format;
+    pipeline_rendering_create_info.depthAttachmentFormat = depth_format;
+
     VkPipelineShaderStageCreateInfo vertex_shader_stage_create_info{};
     vertex_shader_stage_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vertex_shader_stage_create_info.stage = VK_SHADER_STAGE_VERTEX_BIT;
@@ -214,7 +282,7 @@ void Renderer::create_main_pipeline()
     uv_input_attribute_description.offset = static_cast<uint32_t>(offsetof(Vertex, uv));
     uv_input_attribute_description.format = VK_FORMAT_R32G32_SFLOAT;
 
-    std::vector<VkVertexInputAttributeDescription> vertex_input_attribute_descriptions = {position_input_attribute_description, color_input_attribute_description, normal_input_attribute_description};
+    std::vector<VkVertexInputAttributeDescription> vertex_input_attribute_descriptions = {position_input_attribute_description, color_input_attribute_description, normal_input_attribute_description, uv_input_attribute_description};
 
     VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info{};
     vertex_input_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -295,9 +363,9 @@ void Renderer::create_main_pipeline()
 
     VkPipelineLayoutCreateInfo pipeline_layout_info{};
     pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipeline_layout_info.setLayoutCount = 2;
+    pipeline_layout_info.setLayoutCount = 1;
     pipeline_layout_info.pSetLayouts = &set_layout_infos.at(0).layout;
-    pipeline_layout_info.pushConstantRangeCount = 1;
+    pipeline_layout_info.pushConstantRangeCount = 2;
     pipeline_layout_info.pPushConstantRanges = push_constant_ranges;
 
     if (vkCreatePipelineLayout(device, &pipeline_layout_info, nullptr, &main_pipeline_layout) != VK_SUCCESS)
@@ -309,6 +377,7 @@ void Renderer::create_main_pipeline()
 
     VkGraphicsPipelineCreateInfo pipeline_create_info{};
     pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipeline_create_info.pNext = &pipeline_rendering_create_info;
     pipeline_create_info.stageCount = 2;
     pipeline_create_info.pStages = shader_stage_create_infos;
     pipeline_create_info.pVertexInputState = &vertex_input_state_create_info;

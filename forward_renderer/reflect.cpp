@@ -1,12 +1,12 @@
 #include "reflect.hpp"
 
-void load_reflect_module(const std::vector<char>& spv_chars, SpvReflectShaderModule* module)
+void load_reflect_module(const std::vector<char>& spv_chars, SpvReflectShaderModule& module)
 {
     size_t code_size = spv_chars.size(); 
 
     const uint32_t* spv_code = reinterpret_cast<const uint32_t*>(spv_chars.data());
     
-    SpvReflectResult result = spvReflectCreateShaderModule(code_size, spv_code, module);
+    SpvReflectResult result = spvReflectCreateShaderModule(code_size, spv_code, &module);
 
     if (result != SPV_REFLECT_RESULT_SUCCESS)
     {

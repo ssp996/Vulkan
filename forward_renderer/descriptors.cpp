@@ -189,13 +189,13 @@ std::map<uint32_t, SetLayoutInfo> Renderer::build_set_layouts()
 {
     std::map<uint32_t, SetLayoutInfo> out;
 
-    for (const auto* module : reflect_shader_modules)
+    for (const auto& module : reflect_shader_modules)
     {
         uint32_t n_sets = 0;
 
-        spvReflectEnumerateDescriptorSets(module, &n_sets, nullptr);
+        spvReflectEnumerateDescriptorSets(&module, &n_sets, nullptr);
         std::vector<SpvReflectDescriptorSet*> reflect_sets(n_sets);
-        spvReflectEnumerateDescriptorSets(module, &n_sets, reflect_sets.data());
+        spvReflectEnumerateDescriptorSets(&module, &n_sets, reflect_sets.data());
 
         for (const auto* reflect_set : reflect_sets)
         {
@@ -205,7 +205,7 @@ std::map<uint32_t, SetLayoutInfo> Renderer::build_set_layouts()
             for (uint32_t binding = 0; binding < reflect_set->binding_count; binding++)
             {
                 const auto& reflect_binding = *reflect_set->bindings[binding];
-                auto shader_stage = static_cast<VkShaderStageFlags>(module->shader_stage);
+                auto shader_stage = static_cast<VkShaderStageFlags>(module.shader_stage);
                 auto is_binding = std::find_if(info.bindings.begin(), info.bindings.end(), [&](auto& x){return x.binding == reflect_binding.binding;});
 
                 if (is_binding != info.bindings.end())
@@ -251,7 +251,6 @@ std::map<uint32_t, SetLayoutInfo> Renderer::build_set_layouts()
 
         resources.push_back(ResourceTypes::DescriptorSetLayouts, info.layout);
     }
-
     return out;
 }
 
@@ -260,9 +259,13 @@ void Renderer::write_set(VkDescriptorSet set, const SetLayoutInfo& set_layout_in
     std::vector<VkWriteDescriptorSet> writes;
     writes.reserve(binding_data.size());
 
+
     for (const auto& data: binding_data)
     {
+        std::cout << "is buffer empty: " << data.buffers.empty() << " | " << "is image empty: " << data.images.empty() << std::endl;
+
         const auto& layout_binding = set_layout_info.get_set_layout_binding(data.name);
+        std::cout << "binding: " << layout_binding.binding << " | " << "descriptor type: " << (uint32_t)layout_binding.descriptorType << std::endl;
         VkWriteDescriptorSet write{};
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write.dstSet = set;

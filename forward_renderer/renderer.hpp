@@ -49,8 +49,6 @@ class Renderer
         VkSurfaceKHR surface;
 
         VkPhysicalDevice physical_device = VK_NULL_HANDLE;
-        VkDevice device;
-
         VmaAllocator allocator;
 
         VkQueue graphics_queue;
@@ -104,7 +102,7 @@ class Renderer
 
         std::vector<std::vector<char>> shader_codes;
 
-        std::vector<SpvReflectShaderModule*> reflect_shader_modules; 
+        std::vector<SpvReflectShaderModule> reflect_shader_modules; 
         std::map<uint32_t, SetLayoutInfo> set_layout_infos;
 
         std::vector<VkFence> in_flight_fences;
@@ -172,7 +170,7 @@ class Renderer
         void create_directional_shadow_map_descriptor_layout(); */
         
         //main pass
-        void create_directional_light_descriptors();
+        void fallback_fix();
         void create_vertex_shader_descriptor();
         void main_pass(uint32_t current_frame, uint32_t image_index);
         void create_main_pipeline();
@@ -181,8 +179,8 @@ class Renderer
         //sync
         void create_command_pool();
         void create_command_buffers();
-        void transition_image(VkCommandBuffer cmd, VkImage image, VkImageAspectFlags aspect, VkImageLayout old_l, VkImageLayout new_l, VkPipelineStageFlags src_stage, VkAccessFlags src_access, VkPipelineStageFlags dst_stage, VkAccessFlags dst_access);
-        void create_semaphore_set(uint32_t n, std::vector<VkSemaphore> semaphores);
+        void transition_image(VkCommandBuffer cmd, VkImage image, VkImageAspectFlags aspect, VkImageLayout old_layout, VkImageLayout new_layout, VkPipelineStageFlags2 src_stage, VkAccessFlags2 src_access, VkPipelineStageFlags2 dst_stage, VkAccessFlags2 dst_access);
+        void create_semaphore_set(uint32_t n, std::vector<VkSemaphore>& semaphores);
         void create_fence_set(uint32_t n, std::vector<VkFence>& fences, VkFenceCreateFlagBits create_flags);
 
     public:
@@ -219,4 +217,8 @@ class Renderer
         RenderObject create_render_object(std::vector<glm::vec3>& positions, std::vector<glm::vec3>& colors, std::vector<glm::vec3>& normals, std::vector<glm::vec2>& uvs, std::vector<uint16_t>& indices, uint32_t has_texture);
         RenderObject create_render_object_vertices(std::vector<Vertex>& vertices, std::vector<uint16_t>& indices, uint32_t has_texture);
 
-};
+        void create_directional_light_descriptors(); //temporarily here
+
+        //bruh
+        VkDevice device;
+};  

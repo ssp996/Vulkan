@@ -6,8 +6,14 @@ Renderer::Renderer(){};
 
 glm::mat4 Renderer::get_projection_matrix()
 {
-    float fov    = glm::radians(45.0f);         
-    float aspect = 800.0f / 600.0f;            
+
+    if (swap_chain_extent.height == 0 || swap_chain_extent.width == 0) 
+    {
+        return glm::mat4(1.0f); 
+    }
+    float fov    = glm::radians(45.0f);        
+    std::cout << "aspect: " << (float)swap_chain_extent.width / (float)swap_chain_extent.height << std::endl;
+    float aspect = (float)swap_chain_extent.width / (float)swap_chain_extent.height;            
     float near   = 0.1f;                       
     float far    = 100.0f;     
 
@@ -18,7 +24,14 @@ glm::mat4 Renderer::get_projection_matrix()
 
 glm::mat4 Renderer::get_view_matrix()
 {
-    return glm::lookAt(glm::vec3(0.0f, 1.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    // Position the camera high and to the side (X: 4, Y: 3, Z: 2)
+    // Looking at the center (0, 0, 0)
+    // Up vector is Y-up (0, 1, 0)
+    return glm::lookAt(
+        glm::vec3(4.0f, 3.0f, 2.0f), 
+        glm::vec3(0.0f, 0.0f, 0.0f), 
+        glm::vec3(0.0f, 1.0f, 0.0f)
+    );
 }
 
 RenderObject Renderer::create_render_object(std::vector<glm::vec3>& positions, std::vector<glm::vec3>& colors, std::vector<glm::vec3>& normals, std::vector<glm::vec2>& uvs, std::vector<uint16_t>& indices, uint32_t has_texture)
@@ -99,6 +112,8 @@ DirectionalLight Renderer::create_directional_light(glm::vec3 direction, glm::ve
     d.color = color;
     d.intensity = intensity;
     d.light_space_matrix = light_space_matrix;
+    d.depth_images.resize(swap_chain_images.size());
+    d.depth_image_views.resize(swap_chain_images.size());
 
     return d;
 }
@@ -120,25 +135,15 @@ void Renderer::init()
     create_logical_device();
 
     createSwapChain(); //assigns swap_chain_image_format
-    for (auto& image: swap_chain_images)
+    swap_chain_image_views.resize(swap_chain_images.size());
+    for (int i = 0; i < swap_chain_images.size(); i++)
     {
-        create_swap_chain_image_view(image, swap_chain_image_format);
+        swap_chain_image_views[i] = create_swap_chain_image_view(swap_chain_images[i], swap_chain_image_format);
     }
 
     create_memory_allocator();
 
     allocate_depth_image_views();
-
-    create_shadow_pipeline();
-    create_main_pipeline();
-
-    create_command_pool();
-    
-    create_command_buffers();
-
-    create_semaphore_set(static_cast<uint32_t>(swap_chain_images.size()), image_available_semaphores);
-    create_semaphore_set(static_cast<uint32_t>(swap_chain_images.size()), render_finished_semaphores);
-    create_fence_set(static_cast<uint32_t>(swap_chain_images.size()), in_flight_fences, VK_FENCE_CREATE_SIGNALED_BIT);
 
     shader_codes.push_back(readFile(directional_shadow_vertex_shader_filepath));
     shader_codes.push_back(readFile(main_vertex_shader_filepath));
@@ -151,11 +156,28 @@ void Renderer::init()
         load_reflect_module(shader_codes[i], reflect_shader_modules[i]);
     }
 
-    create_descriptor_pool();
-
     set_layout_infos = build_set_layouts();
 
-    create_directional_light_descriptors();
+    create_shadow_sampler();
+
+    std::cout << "printing names: " << std::endl;
+    for (const auto& [key, set_layout_info]: set_layout_infos)
+    {
+        set_layout_info.print_layout_bindings();
+    }
+
+    create_shadow_pipeline();
+    create_main_pipeline();
+
+    create_command_pool();
+    
+    create_command_buffers();
+
+    create_semaphore_set(static_cast<uint32_t>(swap_chain_images.size()), image_available_semaphores);
+    create_semaphore_set(static_cast<uint32_t>(swap_chain_images.size()), render_finished_semaphores);
+    create_fence_set(static_cast<uint32_t>(swap_chain_images.size()), in_flight_fences, VK_FENCE_CREATE_SIGNALED_BIT);
+
+    create_descriptor_pool();
 }
 
 float Renderer::get_time()

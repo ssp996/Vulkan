@@ -21,26 +21,20 @@ struct SwapChainSupportDetails{
 
 struct Resources{
     std::set<ResourceTypes> used_types;
-    std::unordered_map<ResourceTypes, std::any> resources;
+    std::unordered_map<ResourceTypes, std::shared_ptr<void>> resources;
 
     template <typename T>
     void push_back(ResourceTypes key, T& item)
     {
+        /* std::cout << "key" << (uint32_t)key << " | " << "value: " << typeid(item).name() << std::endl;  */
         if (resources.find(key) == resources.end())
         {
-            resources[key] = std::vector<T>();
+            resources[key] = std::make_shared<std::vector<T>>();
             used_types.insert(key);
         }
 
-        auto* vec = std::any_cast<std::vector<T>>(&resources[key]);
-        if (vec)
-        {
-            vec->push_back(item);
-        }
-        else 
-        {
-            throw std::runtime_error(std::format("type mismatch while inserting {}",static_cast<uint32_t>(key)));
-        }
+        auto vec = std::static_pointer_cast<std::vector<T>>(resources[key]);
+        vec->push_back(item);
     }
 
     template <typename T>
@@ -52,7 +46,7 @@ struct Resources{
             return nullptr;
         }
 
-        return std::any_cast<std::vector<T>>(&(required->second));
+        return std::static_pointer_cast<std::vector<T>>(required->second).get();
     }
 };
 
@@ -103,7 +97,7 @@ struct RenderObject{
 struct DirLight{ 
     alignas(16) glm::vec3 direction;
     alignas(16) glm::vec3 color;
-    alignas(16) float intensity;
+    float intensity; 
     alignas(16) glm::mat4 light_space_matrix;
 };
 
@@ -169,6 +163,14 @@ struct SetLayoutInfo{
     std::vector<VkDescriptorSetLayoutBinding> bindings;
     std::unordered_map<std::string, uint32_t> names; //variable names - bindings
 
+    void print_layout_bindings() const
+    {
+        for (const auto& [key, value] : names)
+        {
+            std:: cout << "name: " << key << " | " << "value: " << value << std::endl;
+        }
+    }
+
     const VkDescriptorSetLayoutBinding& get_set_layout_binding(const std::string& name)
     const {
         uint32_t index = names.at(name);
@@ -186,8 +188,8 @@ struct BindingData {
 
 
 struct LightBufferObject{
-    alignas(16) uint32_t active_lights;
     alignas(16) glm::vec3 camera_pos;
+    uint32_t active_lights; 
     alignas(16) DirLight dir_lights[MAX_DIRECTIONAL_LIGHTS];
 };
 
