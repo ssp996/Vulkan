@@ -70,7 +70,7 @@ int main()
 
     renderer.init();
 
-    DirectionalLight l1 = renderer.create_directional_light(glm::vec3(0.0f, -1.0f, -1.0f), glm::vec3(0.6f, 0.2f, 0.2f), 3);
+    DirectionalLight l1 = renderer.create_directional_light(glm::vec3(0.0f, -1.0f, -1.0f), glm::vec3(0.6f, 0.2f, 0.2f), 0.4);
 
     RenderObject cube = renderer.create_render_object_vertices(cube_vertices, cube_indices, 0);
     RenderObject floor = renderer.create_render_object_vertices(floor_vertices, floor_indices, 0);
@@ -84,6 +84,7 @@ int main()
     uint32_t current_frame = 0;
 
     renderer.perspective_projection_matrix = renderer.get_projection_matrix();
+    renderer.camera_pos = glm::vec3(4.0f, 3.0f, 2.0f);
 
     while (!glfwWindowShouldClose(renderer.window))
     {

@@ -80,7 +80,7 @@ void main()
     vec3 norm = normalize(inNormal);
     vec3 viewDir = normalize(lbo.camera_pos - inPosition);
 
-    vec3 result = vec3(1.0);
+    vec3 result = vec3(0.1f);
 
     for (uint i = 0; i < lbo.active_lights; i++)
     {
