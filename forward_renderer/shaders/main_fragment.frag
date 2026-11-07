@@ -22,10 +22,15 @@ layout(set = 0, binding = 0) uniform LightUBO{
 
 layout(set = 0, binding = 1) uniform sampler2DShadow shadow_maps[MAX_DIR_LIGHTS];
 
-layout(push_constant) uniform PC{
-    layout(offset = 112) uint has_texture;
-}pc;
+layout(set = 0, binding = 2) uniform CameraUBO{
+    vec3 camera_pos;
+    mat4 viewproj;
+}cbo;
 
+layout(push_constant) uniform PC{
+    mat4 model;
+    uint has_texture;
+}pc;
 
 layout(location = 0) out vec4 outcolor;
 
@@ -78,7 +83,7 @@ vec3 CalcDirLight(DirLight light, vec3 normal, vec3 viewDir, sampler2DShadow sha
 void main()
 {
     vec3 norm = normalize(inNormal);
-    vec3 viewDir = normalize(lbo.camera_pos - inPosition);
+    vec3 viewDir = normalize(cbo.camera_pos - inPosition);
 
     vec3 result = vec3(0.1f);
 

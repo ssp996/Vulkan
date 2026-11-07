@@ -107,6 +107,7 @@ void Renderer::draw_frame(uint32_t current_frame)
     vkResetFences(device, 1, &in_flight_fences[current_frame]);
 
     update_dir_lights_ubo(current_frame);
+    update_camera_ubo(current_frame);
 
     vkResetCommandBuffer(main_command_buffers[current_frame], 0);
 

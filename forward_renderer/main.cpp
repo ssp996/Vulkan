@@ -79,7 +79,7 @@ int main()
     renderer.render_objects.push_back(cube);
     renderer.render_objects.push_back(floor);
 
-    renderer.create_directional_light_descriptors();
+    renderer.create_main_pass_descriptors();
 
     uint32_t current_frame = 0;
 

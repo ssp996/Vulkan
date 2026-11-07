@@ -130,8 +130,8 @@ struct DirectionalLightPushConstant{
 };
 
 struct Mat4IntPc{
-    alignas(16) glm::mat4 mvp;
-    alignas(16) uint32_t has_texture;
+    glm::mat4 model;
+    uint32_t has_texture;
 };
 
 struct Mat4Mat4Pc{
@@ -191,5 +191,10 @@ struct LightBufferObject{
     alignas(16) glm::vec3 camera_pos;
     uint32_t active_lights; 
     alignas(16) DirLight dir_lights[MAX_DIRECTIONAL_LIGHTS];
+};
+
+struct CameraUBO{
+    alignas(16) glm::vec3 camera_pos;
+    alignas(16) glm::mat4 viewproj;
 };
 

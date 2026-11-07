@@ -55,21 +55,25 @@ void Renderer::fallback_fix()
 }
 
 
-void Renderer::create_directional_light_descriptors()
+void Renderer::create_main_pass_descriptors()
 {
     const SetLayoutInfo& set_info = set_layout_infos.at(0);
 
-    allocate_descriptor_set(set_info.layout, shadow_map_descriptor_sets, static_cast<uint32_t>(swap_chain_images.size()));
+    allocate_descriptor_set(set_info.layout, main_pass_descriptor_sets, static_cast<uint32_t>(swap_chain_images.size()));
 
     allocate_shadow_map_images_and_views();
 
     fallback_fix();
 
     create_and_map_descriptor_buffer(sizeof(LightBufferObject), swap_chain_images.size(), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, dir_lights_buffer);
+    create_and_map_descriptor_buffer(sizeof(CameraUBO), swap_chain_images.size(), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, camera_ubo_buffer);
     for (uint32_t i = 0; i < swap_chain_images.size(); i++)
     {
         update_dir_lights_ubo(i);
+        update_camera_ubo(i);
     }
+
+    
 
     for (int frame = 0; frame < swap_chain_images.size(); frame++)
     {
@@ -100,10 +104,14 @@ void Renderer::create_directional_light_descriptors()
         std::cout << "elem size: " << dir_lights_buffer.elem_size << " | " << "padded size: " << dir_lights_buffer.padded_size <<  std::endl;
         light_buffer_object_bd.buffers = {make_buffer_info(dir_lights_buffer, frame)};
 
+        BindingData camera_ubo_bd{};
+        camera_ubo_bd.name = "cbo";
+        camera_ubo_bd.images = {};
+        camera_ubo_bd.buffers = {make_buffer_info(camera_ubo_buffer, frame)};
 
-        std::vector<BindingData> binding_data = {sampler_bd, light_buffer_object_bd};
+        std::vector<BindingData> binding_data = {sampler_bd, light_buffer_object_bd, camera_ubo_bd};
 
-        write_set(shadow_map_descriptor_sets[frame], set_info, binding_data);
+        write_set(main_pass_descriptor_sets[frame], set_info, binding_data);
     }
 }
 
@@ -124,6 +132,19 @@ void Renderer::update_dir_lights_ubo(uint32_t current_frame)
 
     memcpy(dst, &ubo, sizeof(LightBufferObject));
     vmaFlushAllocation(allocator, dir_lights_buffer.allocation, offset, dir_lights_buffer.padded_size);
+}
+
+void Renderer::update_camera_ubo(uint32_t current_frame)
+{
+    CameraUBO ubo{};
+    ubo.camera_pos = camera_pos;
+    ubo.viewproj = perspective_projection_matrix * view_matrix;
+
+    VkDeviceSize offset = current_frame * camera_ubo_buffer.padded_size;
+    std::byte* dst = static_cast<std::byte*>(camera_ubo_buffer.mapped) + offset;
+
+    memcpy(dst, &ubo, sizeof(CameraUBO));
+    vmaFlushAllocation(allocator, camera_ubo_buffer.allocation, offset, camera_ubo_buffer.padded_size);
 }
 
 void Renderer::main_pass(uint32_t current_frame, uint32_t image_index)
@@ -191,7 +212,7 @@ void Renderer::main_pass(uint32_t current_frame, uint32_t image_index)
     scissor.extent = swap_chain_extent;
     vkCmdSetScissor(main_command_buffers[current_frame], 0, 1, &scissor);
 
-    vkCmdBindDescriptorSets(main_command_buffers[current_frame], VK_PIPELINE_BIND_POINT_GRAPHICS, main_pipeline_layout, 0, 1, &shadow_map_descriptor_sets[current_frame], 0, nullptr);
+    vkCmdBindDescriptorSets(main_command_buffers[current_frame], VK_PIPELINE_BIND_POINT_GRAPHICS, main_pipeline_layout, 0, 1, &main_pass_descriptor_sets[current_frame], 0, nullptr);
 
     glm::mat4 vp = perspective_projection_matrix * view_matrix; //later create a camera class which owns the view matrix (push constant limited to vertex shader)
 
@@ -201,17 +222,12 @@ void Renderer::main_pass(uint32_t current_frame, uint32_t image_index)
         vkCmdBindVertexBuffers(main_command_buffers[current_frame], 0, 1, &object.mesh->vertex_buffer.buffer, &offsets);
         vkCmdBindIndexBuffer(main_command_buffers[current_frame], object.mesh->index_buffer.buffer, 0, VK_INDEX_TYPE_UINT16);
 
-        VertexShaderPc pc{};
-        uint32_t has_texture = object.has_texture;
+        Mat4IntPc pc{};
 
-        pc.vp = vp;
+        pc.has_texture = object.has_texture;
+        pc.model = object.model;
 
-        pc.r0 = glm::row(object.model, 0);
-        pc.r1 = glm::row(object.model, 1);
-        pc.r2 = glm::row(object.model, 2);
-
-        vkCmdPushConstants(main_command_buffers[current_frame], main_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(VertexShaderPc), &pc);
-        vkCmdPushConstants(main_command_buffers[current_frame], main_pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 112, sizeof(has_texture), &has_texture);
+        vkCmdPushConstants(main_command_buffers[current_frame], main_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(Mat4IntPc), &pc);
 
         vkCmdDrawIndexed(main_command_buffers[current_frame], object.mesh->index_count, 1, 0, 0, 0);  
     }
@@ -351,22 +367,18 @@ void Renderer::create_main_pipeline()
 
     VkPushConstantRange push_constant1{};
     push_constant1.offset = 0;
-    push_constant1.size = sizeof(VertexShaderPc);
-    push_constant1.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    push_constant1.size = sizeof(Mat4IntPc);
+    push_constant1.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    VkPushConstantRange push_constant2{};
-    push_constant2.offset = 112;
-    push_constant2.size = sizeof(uint32_t);
-    push_constant2.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    VkPushConstantRange push_constant_ranges[] = {push_constant1, push_constant2};
+    std::vector<VkPushConstantRange> push_constant_ranges = {push_constant1};
 
     VkPipelineLayoutCreateInfo pipeline_layout_info{};
     pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipeline_layout_info.setLayoutCount = 1;
     pipeline_layout_info.pSetLayouts = &set_layout_infos.at(0).layout;
-    pipeline_layout_info.pushConstantRangeCount = 2;
-    pipeline_layout_info.pPushConstantRanges = push_constant_ranges;
+    pipeline_layout_info.pushConstantRangeCount = static_cast<uint32_t>(push_constant_ranges.size());
+    pipeline_layout_info.pPushConstantRanges = push_constant_ranges.data();
 
     if (vkCreatePipelineLayout(device, &pipeline_layout_info, nullptr, &main_pipeline_layout) != VK_SUCCESS)
     {

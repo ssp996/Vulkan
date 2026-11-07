@@ -78,6 +78,7 @@ class Renderer
         VkDescriptorSet directional_shadow_map_descriptor_set;
 
         AllocatedBuffer dir_lights_buffer;
+        AllocatedBuffer camera_ubo_buffer;
 
         VkPipelineLayout main_pipeline_layout;
         VkPipeline main_pipeline;
@@ -89,7 +90,7 @@ class Renderer
 
         VkDescriptorPool descriptor_pool;
 
-        std::vector<VkDescriptorSet> shadow_map_descriptor_sets;
+        std::vector<VkDescriptorSet> main_pass_descriptor_sets;
         std::vector<VkDescriptorSet> vertex_shader_descriptor_set;
 
 
@@ -175,6 +176,7 @@ class Renderer
         void main_pass(uint32_t current_frame, uint32_t image_index);
         void create_main_pipeline();
         void update_dir_lights_ubo(uint32_t current_frame);
+        void update_camera_ubo(uint32_t current_frame);
 
         //sync
         void create_command_pool();
@@ -217,7 +219,7 @@ class Renderer
         RenderObject create_render_object(std::vector<glm::vec3>& positions, std::vector<glm::vec3>& colors, std::vector<glm::vec3>& normals, std::vector<glm::vec2>& uvs, std::vector<uint16_t>& indices, uint32_t has_texture);
         RenderObject create_render_object_vertices(std::vector<Vertex>& vertices, std::vector<uint16_t>& indices, uint32_t has_texture);
 
-        void create_directional_light_descriptors(); //temporarily here
+        void create_main_pass_descriptors(); //temporarily here
 
         //bruh
         VkDevice device;

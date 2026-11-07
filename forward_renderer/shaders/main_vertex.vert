@@ -10,25 +10,25 @@ layout(location = 1) out vec3 outColor;
 layout(location = 2) out vec3 outNormal;
 layout(location = 3) out vec2 outUv;
 
-layout(push_constant) uniform PC{
-    vec4 model_r0;
-    vec4 model_r1;
-    vec4 model_r2;
+layout(set = 0, binding = 2) uniform CameraUBO{
+    vec3 camera_pos;
     mat4 viewproj;
-}pc;
+}cbo;
 
+layout(push_constant) uniform PC{
+    mat4 model;
+    uint has_texture;
+}pc;
 
 void main()
 {
     vec4 p = vec4(inPosition, 1.0);
-    vec3 world = vec3(dot(pc.model_r0, p), dot(pc.model_r1, p), dot(pc.model_r2, p));
-
-    gl_Position = pc.viewproj * vec4(world, 1.0);
+    vec3 world = vec3(pc.model * p);
+    
+    gl_Position = cbo.viewproj * vec4(world, 1.0);
 
     outPosition = world;
     outColor = inColor;
-     outNormal   = vec3(dot(pc.model_r0.xyz, inNormal),
-                       dot(pc.model_r1.xyz, inNormal),
-                       dot(pc.model_r2.xyz, inNormal));
+    outNormal   = mat3(transpose(inverse(pc.model))) * inNormal;
     outUv = inUv;
 }
