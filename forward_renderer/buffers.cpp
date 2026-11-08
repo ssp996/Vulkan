@@ -1,5 +1,42 @@
 #include "renderer.hpp"
 
+void Renderer::copy_buffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size)
+{
+    VkCommandBufferAllocateInfo alloc_info{};
+    alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    alloc_info.commandPool = command_pool;
+    alloc_info.commandBufferCount = 1;
+
+    VkCommandBuffer temp_cmd;
+    vkAllocateCommandBuffers(device, &alloc_info, &temp_cmd);
+
+    VkCommandBufferBeginInfo begin_info{};
+    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(temp_cmd, &begin_info);
+
+    VkBufferCopy copy_region{};
+    copy_region.size = size;
+    vkCmdCopyBuffer(temp_cmd, src_buffer, dst_buffer, 1, &copy_region);
+
+    vkEndCommandBuffer(temp_cmd);
+
+    VkCommandBufferSubmitInfo cmd_submit{};
+    cmd_submit.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+    cmd_submit.commandBuffer = temp_cmd;
+
+    VkSubmitInfo2 submit{};
+    submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+    submit.commandBufferInfoCount = 1;
+    submit.pCommandBufferInfos = &cmd_submit;
+
+    vkQueueSubmit2(graphics_queue, 1, &submit, VK_NULL_HANDLE);
+    vkQueueWaitIdle(graphics_queue);
+
+    vkFreeCommandBuffers(device, command_pool, 1, &temp_cmd);
+}
+
 void Renderer::create_and_map_descriptor_buffer(size_t size,  uint32_t n_elements, VkBufferUsageFlags buffer_usage, AllocatedBuffer& buffer)
 {
     VkPhysicalDeviceProperties properties;
@@ -34,6 +71,17 @@ void Renderer::create_and_map_descriptor_buffer(size_t size,  uint32_t n_element
     buffer.elem_size = size;
 
     resources.push_back(ResourceTypes::AllocatedBuffer, buffer);
+}
+
+void Renderer::create_staging_vertex_buffer(const std::vector<Vertex>& vertices, const std::vector<uint16_t>& indices, Mesh& mesh)
+{
+    //gpu buffer so cant be mapped
+    mesh.vertex_buffer.mapped = nullptr;
+    mesh.index_buffer.mapped = nullptr;
+
+    create_staging_buffer<Vertex>(vertices, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, mesh.vertex_buffer);
+    create_staging_buffer<uint16_t>(indices, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, mesh.index_buffer);
+
 }
 
 void Renderer::create_and_map_vertex_buffer(const std::vector<Vertex>& vertices, std::vector<uint16_t> indices, Mesh& mesh)
@@ -83,7 +131,7 @@ void Renderer::create_and_map_vertex_buffer(const std::vector<Vertex>& vertices,
     resources.push_back(ResourceTypes::AllocatedBuffer, mesh.index_buffer);
 }
 
-void Renderer::create_directional_light_buffer_objects(uint32_t n)
+/* void Renderer::create_directional_light_buffer_objects(uint32_t n)
 {
     for (int i = 0; i < n; i++)
     {
@@ -102,4 +150,4 @@ void Renderer::create_directional_light_buffer_objects(uint32_t n)
             }
         }
     }
-}
+} */

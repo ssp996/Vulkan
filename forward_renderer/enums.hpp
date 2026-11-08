@@ -2,24 +2,26 @@
 #include <cstdint>
 
 enum class ResourceTypes : uint32_t{
-    FrameBuffers =          1,
-    ImageViews =            2,
-    AllocatedImages =       3,
-    AllocatedBuffer =       4,
-    RenderObjects =         5,
-    Samplers =              6,
-    DescriptorPools =       7,
-    Pipelines =             8,
-    PipelineLayouts =       9,
-    DescriptorSetLayouts =  10,
-    RenderPasses =          11,
-    CommandPools =          12,
-    SwapChain =             13,
-    LogicalDevice =         14,
-    Surface =               15,
-    DebugMessenger =        16,
-    Instance =              17,
-    Allocator =             18
+    Sempahores =            1,
+    Fences =                2,
+    FrameBuffers =          3,
+    ImageViews =            4,
+    AllocatedImages =       5,
+    AllocatedBuffer =       6,
+    RenderObjects =         7,
+    Samplers =              8,
+    DescriptorPools =       9,
+    Pipelines =             10,
+    PipelineLayouts =       11,
+    DescriptorSetLayouts =  12,
+    RenderPasses =          13,
+    CommandPools =          14,
+    SwapChain =             15,
+    LogicalDevice =         16,
+    Surface =               17,
+    DebugMessenger =        18,
+    Instance =              19,
+    Allocator =             20
 };
 
 enum class DescriptorUsage : uint32_t{

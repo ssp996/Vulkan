@@ -86,8 +86,6 @@ class Renderer
         VkCommandPool command_pool;
         std::vector<VkCommandBuffer> main_command_buffers;
 
-        Resources resources{};
-
         VkDescriptorPool descriptor_pool;
 
         std::vector<VkDescriptorSet> main_pass_descriptor_sets;
@@ -147,8 +145,47 @@ class Renderer
         VkShaderModule createShaderModule(const std::vector<char>& code, VkDevice device);
 
         //buffers
+        template <typename T>
+        void create_staging_buffer(const std::vector<T>& data, VkBufferUsageFlagBits buffer_usage, AllocatedBuffer& buffer)
+        {
+            size_t size = sizeof(T) * data.size();
+
+            VkBuffer staging_buffer;
+            VmaAllocation staging_allocation;
+            
+            VkBufferCreateInfo staging_info{};
+            staging_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+            staging_info.size = (VkDeviceSize)size;
+            staging_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT; 
+            
+            VmaAllocationCreateInfo staging_alloc_info{};
+            staging_alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
+            staging_alloc_info.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+            
+            VmaAllocationInfo alloc_info;
+            vmaCreateBuffer(allocator, &staging_info, &staging_alloc_info, &staging_buffer, &staging_allocation, &alloc_info);
+        
+            memcpy(alloc_info.pMappedData, data.data(), size);
+
+            VkBufferCreateInfo gpu_info{};
+            gpu_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+            gpu_info.size = (VkDeviceSize)size;
+            gpu_info.usage = buffer_usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT; 
+            
+            VmaAllocationCreateInfo gpu_alloc_info{};
+            gpu_alloc_info.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE; 
+            
+            vmaCreateBuffer(allocator, &gpu_info, &gpu_alloc_info, &buffer.buffer, &buffer.allocation, nullptr);
+            copy_buffer(staging_buffer, buffer.buffer, size);
+            vmaDestroyBuffer(allocator, staging_buffer, staging_allocation);
+
+            resources.push_back(ResourceTypes::AllocatedBuffer, buffer);
+        }
+
+        void copy_buffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size);
         void create_and_map_descriptor_buffer(size_t size,  uint32_t n_elements, VkBufferUsageFlags buffer_usage, AllocatedBuffer& buffer);
         void create_and_map_vertex_buffer(const std::vector<Vertex>& vertices, std::vector<uint16_t> indices, Mesh& mesh);
+        void create_staging_vertex_buffer(const std::vector<Vertex>& vertices, const std::vector<uint16_t>& indices, Mesh& mesh);
         void create_directional_light_buffer_objects(uint32_t n);
         //descriptors
         void create_descriptor_pool();
@@ -221,6 +258,10 @@ class Renderer
 
         void create_main_pass_descriptors(); //temporarily here
 
+        void cleanup();
+
         //bruh
         VkDevice device;
+
+        Resources resources{};
 };  

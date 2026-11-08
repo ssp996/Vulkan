@@ -180,6 +180,11 @@ void Renderer::init()
     create_descriptor_pool();
 }
 
+void Renderer::cleanup()
+{
+    
+}
+
 float Renderer::get_time()
 {
     return time;

@@ -21,12 +21,11 @@ struct SwapChainSupportDetails{
 
 struct Resources{
     std::set<ResourceTypes> used_types;
-    std::unordered_map<ResourceTypes, std::shared_ptr<void>> resources;
+    std::map<ResourceTypes, std::shared_ptr<void>> resources;
 
     template <typename T>
     void push_back(ResourceTypes key, T& item)
     {
-        /* std::cout << "key" << (uint32_t)key << " | " << "value: " << typeid(item).name() << std::endl;  */
         if (resources.find(key) == resources.end())
         {
             resources[key] = std::make_shared<std::vector<T>>();
