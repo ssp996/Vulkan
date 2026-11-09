@@ -137,8 +137,8 @@ void Renderer::update_dir_lights_ubo(uint32_t current_frame)
 void Renderer::update_camera_ubo(uint32_t current_frame)
 {
     CameraUBO ubo{};
-    ubo.camera_pos = camera_pos;
-    ubo.viewproj = perspective_projection_matrix * view_matrix;
+    ubo.camera_pos = camera.position;
+    ubo.viewproj = perspective_projection_matrix * camera.get_view_matrix();
 
     VkDeviceSize offset = current_frame * camera_ubo_buffer.padded_size;
     std::byte* dst = static_cast<std::byte*>(camera_ubo_buffer.mapped) + offset;
@@ -213,8 +213,6 @@ void Renderer::main_pass(uint32_t current_frame, uint32_t image_index)
     vkCmdSetScissor(main_command_buffers[current_frame], 0, 1, &scissor);
 
     vkCmdBindDescriptorSets(main_command_buffers[current_frame], VK_PIPELINE_BIND_POINT_GRAPHICS, main_pipeline_layout, 0, 1, &main_pass_descriptor_sets[current_frame], 0, nullptr);
-
-    glm::mat4 vp = perspective_projection_matrix * view_matrix; //later create a camera class which owns the view matrix (push constant limited to vertex shader)
 
     for (const auto& object: render_objects)
     {

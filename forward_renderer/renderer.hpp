@@ -4,6 +4,7 @@
 #include "structs.hpp"
 #include "enums.hpp"
 #include "constants.hpp"
+#include "camera.hpp"
 
 
 #ifdef NDEBUG 
@@ -235,6 +236,8 @@ class Renderer
 
         glm::mat4 get_projection_matrix();
         glm::mat4 get_view_matrix();
+
+        Camera camera;
 
         glm::mat4 view_matrix = get_view_matrix();
  

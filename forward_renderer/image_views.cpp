@@ -86,12 +86,9 @@ void Renderer::create_image(VkImage& image, VkFormat format, VkImageUsageFlags u
     image_info.samples = VK_SAMPLE_COUNT_1_BIT;
     image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    if (vkCreateImage(device, &image_info, nullptr, &image) != VK_SUCCESS) throw std::runtime_error("failed to create image");
 
     VmaAllocationCreateInfo alloc_info{};
     VmaAllocation allocation;
-
-    AllocatedImage allocated_image{};
 
     alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
 
@@ -100,6 +97,7 @@ void Renderer::create_image(VkImage& image, VkFormat format, VkImageUsageFlags u
         throw std::runtime_error("failed to allocate images");
     }
 
+    AllocatedImage allocated_image{};
     allocated_image.allocation = allocation;
     allocated_image.image = image;
 

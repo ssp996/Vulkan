@@ -70,6 +70,8 @@ void Renderer::create_semaphore_set(uint32_t n, std::vector<VkSemaphore>& semaph
         {
             throw std::runtime_error("failed to create semaphores");
         }
+
+        resources.push_back(ResourceTypes::Sempahores, semaphores[i]);
     }
 }
 
@@ -87,6 +89,8 @@ void Renderer::create_fence_set(uint32_t n, std::vector<VkFence>& fences, VkFenc
         {
             throw std::runtime_error("failed to create fences");
         }
+        
+        resources.push_back(ResourceTypes::Fences, fences[i]);
     }
 }
 

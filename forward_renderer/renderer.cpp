@@ -182,7 +182,32 @@ void Renderer::init()
 
 void Renderer::cleanup()
 {
+    vkDeviceWaitIdle(device);
     
+    for (auto it = resources.resources.begin(); it != resources.resources.end(); ++it)
+    {
+        ResourceTypes type = it->first;
+        std::shared_ptr<void> ptr = it->second;
+
+        if (free_functions.find(type) != free_functions.end())
+        {
+            free_functions.at(type)(ptr, instance, device, allocator);
+        }
+    }
+    
+    resources.resources.clear();
+    resources.used_types.clear();
+
+    vmaDestroyAllocator(allocator);
+    vkDestroyDevice(device, nullptr);
+    vkDestroySurfaceKHR(instance, surface, nullptr); 
+    
+    auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
+    if (func != nullptr) {
+        func(instance, debug_messenger, nullptr);
+    }
+    
+    vkDestroyInstance(instance, nullptr);
 }
 
 float Renderer::get_time()

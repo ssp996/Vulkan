@@ -17,11 +17,11 @@ enum class ResourceTypes : uint32_t{
     RenderPasses =          13,
     CommandPools =          14,
     SwapChain =             15,
-    LogicalDevice =         16,
-    Surface =               17,
-    DebugMessenger =        18,
-    Instance =              19,
-    Allocator =             20
+    Allocator =             16, 
+    LogicalDevice =         17, 
+    Surface =               18,
+    DebugMessenger =        19, 
+    Instance =              20 
 };
 
 enum class DescriptorUsage : uint32_t{

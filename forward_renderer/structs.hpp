@@ -49,6 +49,7 @@ struct Resources{
     }
 };
 
+
 struct Vertex
 {
     glm::vec3 position;
@@ -197,3 +198,187 @@ struct CameraUBO{
     alignas(16) glm::mat4 viewproj;
 };
 
+using free_function = std::function<void(std::shared_ptr<void>, VkInstance, VkDevice, VmaAllocator)>;
+
+inline const std::map<ResourceTypes, free_function> free_functions = {
+    {
+        ResourceTypes::Sempahores,
+        [](std::shared_ptr<void>ptr, VkInstance instance, VkDevice device, VmaAllocator allocator)
+        {
+            auto vec = std::static_pointer_cast<std::vector<VkSemaphore>>(ptr);
+
+            for (auto& semaphore: *vec)
+            {
+                vkDestroySemaphore(device, semaphore, nullptr);
+            }
+        }
+    },
+    {
+        ResourceTypes::Fences,
+        [](std::shared_ptr<void>ptr, VkInstance instance, VkDevice device, VmaAllocator allocator)
+        {
+            auto vec = std::static_pointer_cast<std::vector<VkFence>>(ptr);
+
+            for (auto& fence: *vec)
+            {
+                vkDestroyFence(device, fence, nullptr);
+            }
+        }
+    },
+    {
+        ResourceTypes::FrameBuffers,
+        [](std::shared_ptr<void>ptr, VkInstance instance, VkDevice device, VmaAllocator allocator)
+        {
+            auto vec = std::static_pointer_cast<std::vector<VkFramebuffer>>(ptr);
+
+            for (auto& frame_buffer: *vec)
+            {
+                vkDestroyFramebuffer(device, frame_buffer, nullptr);
+            }
+        }
+    },
+    {
+        ResourceTypes::ImageViews,
+        [](std::shared_ptr<void>ptr, VkInstance instance, VkDevice device, VmaAllocator allocator)
+        {
+            auto vec = std::static_pointer_cast<std::vector<VkImageView>>(ptr);
+
+            for (auto& image_view: *vec)
+            {
+                vkDestroyImageView(device, image_view, nullptr);
+            }
+        }
+    },
+    {
+        ResourceTypes::AllocatedImages,
+        [](std::shared_ptr<void>ptr, VkInstance instance, VkDevice device, VmaAllocator allocator)
+        {
+            auto vec = std::static_pointer_cast<std::vector<AllocatedImage>>(ptr);
+
+            for (auto& image: *vec)
+            {
+                vmaDestroyImage(allocator, image.image, image.allocation);
+            }
+        }
+    },
+    {
+        ResourceTypes::AllocatedBuffer,
+        [](std::shared_ptr<void>ptr, VkInstance instance, VkDevice device, VmaAllocator allocator)
+        {
+            auto vec = std::static_pointer_cast<std::vector<AllocatedBuffer>>(ptr);
+
+            for (auto& buffer: *vec)
+            {
+                vmaDestroyBuffer(allocator, buffer.buffer, buffer.allocation);
+            }
+        }
+    },
+    {
+        ResourceTypes::RenderObjects,
+        [](std::shared_ptr<void>ptr, VkInstance instance, VkDevice device, VmaAllocator allocator)
+        {
+            auto vec = std::static_pointer_cast<std::vector<RenderObject>>(ptr);
+
+            for (auto& object: *vec)
+            {
+                delete object.mesh;
+            }
+        }
+    },
+    {
+        ResourceTypes::Samplers,
+        [](std::shared_ptr<void>ptr, VkInstance instance, VkDevice device, VmaAllocator allocator)
+        {
+            auto vec = std::static_pointer_cast<std::vector<VkSampler>>(ptr);
+
+            for (auto& sampler: *vec)
+            {
+                vkDestroySampler(device, sampler, nullptr);
+            }
+        }
+    },
+    {
+        ResourceTypes::DescriptorPools,
+        [](std::shared_ptr<void>ptr, VkInstance instance, VkDevice device, VmaAllocator allocator)
+        {
+            auto vec = std::static_pointer_cast<std::vector<VkDescriptorPool>>(ptr);
+
+            for (auto& pool: *vec)
+            {
+                vkDestroyDescriptorPool(device, pool, nullptr);
+            }
+        }
+    },
+    {
+        ResourceTypes::Pipelines,
+        [](std::shared_ptr<void>ptr, VkInstance instance, VkDevice device, VmaAllocator allocator)
+        {
+            auto vec = std::static_pointer_cast<std::vector<VkPipeline>>(ptr);
+
+            for (auto& pipeline: *vec)
+            {
+                vkDestroyPipeline(device, pipeline, nullptr);
+            }
+        }
+    },
+    {
+        ResourceTypes::PipelineLayouts,
+        [](std::shared_ptr<void>ptr, VkInstance instance, VkDevice device, VmaAllocator allocator)
+        {
+            auto vec = std::static_pointer_cast<std::vector<VkPipelineLayout>>(ptr);
+
+            for (auto& layout: *vec)
+            {
+                vkDestroyPipelineLayout(device, layout, nullptr);
+            }
+        }
+    },
+    {
+        ResourceTypes::DescriptorSetLayouts,
+        [](std::shared_ptr<void>ptr, VkInstance instance, VkDevice device, VmaAllocator allocator)
+        {
+            auto vec = std::static_pointer_cast<std::vector<VkDescriptorSetLayout>>(ptr);
+
+            for (auto& set_layout: *vec)
+            {
+                vkDestroyDescriptorSetLayout(device, set_layout, nullptr);
+            }
+        }
+    },
+    {
+        ResourceTypes::RenderPasses,
+        [](std::shared_ptr<void>ptr, VkInstance instance, VkDevice device, VmaAllocator allocator)
+        {
+            auto vec = std::static_pointer_cast<std::vector<VkRenderPass>>(ptr);
+
+            for (auto& pass: *vec)
+            {
+                vkDestroyRenderPass(device, pass, nullptr);
+            }
+        }
+    },
+    {
+        ResourceTypes::CommandPools,
+        [](std::shared_ptr<void>ptr, VkInstance instance, VkDevice device, VmaAllocator allocator)
+        {
+            auto vec = std::static_pointer_cast<std::vector<VkCommandPool>>(ptr);
+
+            for (auto& command_pool: *vec)
+            {
+                vkDestroyCommandPool(device, command_pool, nullptr);
+            }
+        }
+    },
+    {
+        ResourceTypes::SwapChain,
+        [](std::shared_ptr<void>ptr, VkInstance instance, VkDevice device, VmaAllocator allocator)
+        {
+            auto vec = std::static_pointer_cast<std::vector<VkSwapchainKHR>>(ptr);
+
+            for (auto& swapchain: *vec)
+            {
+                vkDestroySwapchainKHR(device, swapchain, nullptr);
+            }
+        }
+    }
+};

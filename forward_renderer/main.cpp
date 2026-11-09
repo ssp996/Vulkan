@@ -79,6 +79,8 @@ int main()
     renderer.render_objects.push_back(cube);
     renderer.render_objects.push_back(floor);
 
+    renderer.camera = Camera();
+
     renderer.create_main_pass_descriptors();
 
     uint32_t current_frame = 0;
@@ -90,14 +92,14 @@ int main()
     {
         glfwPollEvents();
 
+        renderer.camera.update(renderer.window);
+
         renderer.draw_frame(current_frame);
 
         current_frame = (current_frame + 1) % MAX_FRAMES_IN_FLIGHT; 
     }
 
-    vkDeviceWaitIdle(renderer.device);
-
-    //add cleanup next
+    renderer.cleanup();
 
     glfwTerminate();
 
