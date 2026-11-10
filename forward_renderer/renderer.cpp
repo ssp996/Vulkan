@@ -66,7 +66,7 @@ RenderObject Renderer::create_render_object(std::vector<glm::vec3>& positions, s
     return r;
 }
 
-RenderObject Renderer::create_render_object_vertices(std::vector<Vertex>& vertices, std::vector<uint16_t>& indices, uint32_t has_texture)
+RenderObject Renderer::create_render_object_vertices(std::vector<Vertex>& vertices, std::vector<uint16_t>& indices, uint32_t has_texture, const std::string& material_name)
 {   
     Mesh* mesh = new Mesh;
 
@@ -78,6 +78,20 @@ RenderObject Renderer::create_render_object_vertices(std::vector<Vertex>& vertic
     r.has_texture = has_texture;
     r.mesh = mesh;
     r.model = glm::mat4(1.0f);
+
+    if (has_texture != 0)
+    {
+        if (material_name == "")
+        {
+            throw std::runtime_error("missing material");
+        }
+
+        r.material_descriptor_set = material_map[material_name].descriptor_set;
+    }
+    else if (has_texture == 0 && material_name != "")
+    {
+        throw std::runtime_error("unncessary material");
+    }
 
     return r;
 }
@@ -159,6 +173,7 @@ void Renderer::init()
     set_layout_infos = build_set_layouts();
 
     create_shadow_sampler();
+    create_texture_sampler();
 
     std::cout << "printing names: " << std::endl;
     for (const auto& [key, set_layout_info]: set_layout_infos)
@@ -214,3 +229,63 @@ float Renderer::get_time()
 {
     return time;
 }
+
+void Renderer::begin_temp_command_buffer(VkCommandBuffer& command_buffer)
+{
+    VkCommandBufferAllocateInfo alloc_info{};
+    alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    alloc_info.commandPool = command_pool;
+    alloc_info.commandBufferCount = 1;
+
+    vkAllocateCommandBuffers(device, &alloc_info, &command_buffer);
+
+    VkCommandBufferBeginInfo begin_info{};
+    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(command_buffer, &begin_info);
+}
+
+void Renderer::end_temp_command_buffer(VkCommandBuffer& command_buffer)
+{
+    vkEndCommandBuffer(command_buffer);
+
+    VkCommandBufferSubmitInfo cmd_submit{};
+    cmd_submit.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+    cmd_submit.commandBuffer = command_buffer;
+
+    VkSubmitInfo2 submit{};
+    submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+    submit.commandBufferInfoCount = 1;
+    submit.pCommandBufferInfos = &cmd_submit;
+
+    vkQueueSubmit2(graphics_queue, 1, &submit, VK_NULL_HANDLE);
+    vkQueueWaitIdle(graphics_queue);
+
+    vkFreeCommandBuffers(device, command_pool, 1, &command_buffer);
+}
+
+void Renderer::create_material(const std::string& name, const std::string& filepath)
+{
+    Material m{};
+    load_texture(filepath, m.image, m.view);
+    material_map[name] = m;
+}
+
+void Renderer::create_material_descriptors()
+{
+    allocate_descriptor_set(set_layout_infos.at(1).layout, texture_descriptor_set, static_cast<uint32_t>(material_map.size()));
+
+    int i = 0;
+    for (auto& [name, material]: material_map)
+    {
+        material.descriptor_set = texture_descriptor_set[i++];
+
+        BindingData bd{};
+        bd.buffers = {};
+        bd.images = {make_image_info(material.view, texture_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)};
+        bd.name = "albedo_texture";
+
+        write_set(material.descriptor_set, set_layout_infos.at(1), {bd});
+    }
+ }

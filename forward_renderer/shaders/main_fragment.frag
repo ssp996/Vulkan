@@ -27,6 +27,8 @@ layout(set = 0, binding = 2) uniform CameraUBO{
     mat4 viewproj;
 }cbo;
 
+layout(set = 1, binding = 0) uniform sampler2D albedo_texture;
+
 layout(push_constant) uniform PC{
     mat4 model;
     uint has_texture;
@@ -96,7 +98,7 @@ void main()
 
     if (pc.has_texture != 0)
     {
-        albedo = inColor; //change later
+        albedo = texture(albedo_texture, inUv).rgb;
     }
     else 
     {

@@ -77,6 +77,12 @@ struct Mesh{
     uint32_t index_count;
 };
 
+struct Material{
+    AllocatedImage image;
+    VkImageView view;
+    VkDescriptorSet descriptor_set;
+};
+
 struct Transform{
     glm::mat4 scale;
     glm::mat4 rotate;
@@ -92,6 +98,7 @@ struct RenderObject{
     Mesh* mesh;
     glm::mat4 model;
     uint32_t has_texture;
+    VkDescriptorSet material_descriptor_set;
 };
 
 struct DirLight{ 

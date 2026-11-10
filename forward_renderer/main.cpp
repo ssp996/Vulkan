@@ -7,40 +7,40 @@ int main()
     std::vector<Vertex> cube_vertices = {
         // FRONT FACE (+Z) - Red
         // Position                 Color                 Normal                UV
-        {{-0.5f, -0.5f,  0.5f},  {1.0f, 0.0f, 0.0f},  { 0.0f,  0.0f,  1.0f},  {0.0f, 0.0f}}, // Bottom-Left
-        {{ 0.5f, -0.5f,  0.5f},  {1.0f, 0.0f, 0.0f},  { 0.0f,  0.0f,  1.0f},  {1.0f, 0.0f}}, // Bottom-Right
-        {{ 0.5f,  0.5f,  0.5f},  {1.0f, 0.0f, 0.0f},  { 0.0f,  0.0f,  1.0f},  {1.0f, 1.0f}}, // Top-Right
-        {{-0.5f,  0.5f,  0.5f},  {1.0f, 0.0f, 0.0f},  { 0.0f,  0.0f,  1.0f},  {0.0f, 1.0f}}, // Top-Left
+        {{-0.5f, -0.5f,  0.5f},  {1.0f, 0.0f, 0.0f},  { 0.0f,  0.0f,  1.0f},  {0.0f, 1.0f}}, // Bottom-Left
+        {{ 0.5f, -0.5f,  0.5f},  {1.0f, 0.0f, 0.0f},  { 0.0f,  0.0f,  1.0f},  {1.0f, 1.0f}}, // Bottom-Right
+        {{ 0.5f,  0.5f,  0.5f},  {1.0f, 0.0f, 0.0f},  { 0.0f,  0.0f,  1.0f},  {1.0f, 0.0f}}, // Top-Right
+        {{-0.5f,  0.5f,  0.5f},  {1.0f, 0.0f, 0.0f},  { 0.0f,  0.0f,  1.0f},  {0.0f, 0.0f}}, // Top-Left
 
         // BACK FACE (-Z) - Green
-        {{ 0.5f, -0.5f, -0.5f},  {0.0f, 1.0f, 0.0f},  { 0.0f,  0.0f, -1.0f},  {0.0f, 0.0f}},
-        {{-0.5f, -0.5f, -0.5f},  {0.0f, 1.0f, 0.0f},  { 0.0f,  0.0f, -1.0f},  {1.0f, 0.0f}},
-        {{-0.5f,  0.5f, -0.5f},  {0.0f, 1.0f, 0.0f},  { 0.0f,  0.0f, -1.0f},  {1.0f, 1.0f}},
-        {{ 0.5f,  0.5f, -0.5f},  {0.0f, 1.0f, 0.0f},  { 0.0f,  0.0f, -1.0f},  {0.0f, 1.0f}},
+        {{ 0.5f, -0.5f, -0.5f},  {0.0f, 1.0f, 0.0f},  { 0.0f,  0.0f, -1.0f},  {0.0f, 1.0f}},
+        {{-0.5f, -0.5f, -0.5f},  {0.0f, 1.0f, 0.0f},  { 0.0f,  0.0f, -1.0f},  {1.0f, 1.0f}},
+        {{-0.5f,  0.5f, -0.5f},  {0.0f, 1.0f, 0.0f},  { 0.0f,  0.0f, -1.0f},  {1.0f, 0.0f}},
+        {{ 0.5f,  0.5f, -0.5f},  {0.0f, 1.0f, 0.0f},  { 0.0f,  0.0f, -1.0f},  {0.0f, 0.0f}},
 
         // LEFT FACE (-X) - Blue
-        {{-0.5f, -0.5f, -0.5f},  {0.0f, 0.0f, 1.0f},  {-1.0f,  0.0f,  0.0f},  {0.0f, 0.0f}},
-        {{-0.5f, -0.5f,  0.5f},  {0.0f, 0.0f, 1.0f},  {-1.0f,  0.0f,  0.0f},  {1.0f, 0.0f}},
-        {{-0.5f,  0.5f,  0.5f},  {0.0f, 0.0f, 1.0f},  {-1.0f,  0.0f,  0.0f},  {1.0f, 1.0f}},
-        {{-0.5f,  0.5f, -0.5f},  {0.0f, 0.0f, 1.0f},  {-1.0f,  0.0f,  0.0f},  {0.0f, 1.0f}},
+        {{-0.5f, -0.5f, -0.5f},  {0.0f, 0.0f, 1.0f},  {-1.0f,  0.0f,  0.0f},  {0.0f, 1.0f}},
+        {{-0.5f, -0.5f,  0.5f},  {0.0f, 0.0f, 1.0f},  {-1.0f,  0.0f,  0.0f},  {1.0f, 1.0f}},
+        {{-0.5f,  0.5f,  0.5f},  {0.0f, 0.0f, 1.0f},  {-1.0f,  0.0f,  0.0f},  {1.0f, 0.0f}},
+        {{-0.5f,  0.5f, -0.5f},  {0.0f, 0.0f, 1.0f},  {-1.0f,  0.0f,  0.0f},  {0.0f, 0.0f}},
 
         // RIGHT FACE (+X) - Yellow
-        {{ 0.5f, -0.5f,  0.5f},  {1.0f, 1.0f, 0.0f},  { 1.0f,  0.0f,  0.0f},  {0.0f, 0.0f}},
-        {{ 0.5f, -0.5f, -0.5f},  {1.0f, 1.0f, 0.0f},  { 1.0f,  0.0f,  0.0f},  {1.0f, 0.0f}},
-        {{ 0.5f,  0.5f, -0.5f},  {1.0f, 1.0f, 0.0f},  { 1.0f,  0.0f,  0.0f},  {1.0f, 1.0f}},
-        {{ 0.5f,  0.5f,  0.5f},  {1.0f, 1.0f, 0.0f},  { 1.0f,  0.0f,  0.0f},  {0.0f, 1.0f}},
+        {{ 0.5f, -0.5f,  0.5f},  {1.0f, 1.0f, 0.0f},  { 1.0f,  0.0f,  0.0f},  {0.0f, 1.0f}},
+        {{ 0.5f, -0.5f, -0.5f},  {1.0f, 1.0f, 0.0f},  { 1.0f,  0.0f,  0.0f},  {1.0f, 1.0f}},
+        {{ 0.5f,  0.5f, -0.5f},  {1.0f, 1.0f, 0.0f},  { 1.0f,  0.0f,  0.0f},  {1.0f, 0.0f}},
+        {{ 0.5f,  0.5f,  0.5f},  {1.0f, 1.0f, 0.0f},  { 1.0f,  0.0f,  0.0f},  {0.0f, 0.0f}},
 
         // TOP FACE (+Y) - Magenta
-        {{-0.5f,  0.5f,  0.5f},  {1.0f, 0.0f, 1.0f},  { 0.0f,  1.0f,  0.0f},  {0.0f, 0.0f}},
-        {{ 0.5f,  0.5f,  0.5f},  {1.0f, 0.0f, 1.0f},  { 0.0f,  1.0f,  0.0f},  {1.0f, 0.0f}},
-        {{ 0.5f,  0.5f, -0.5f},  {1.0f, 0.0f, 1.0f},  { 0.0f,  1.0f,  0.0f},  {1.0f, 1.0f}},
-        {{-0.5f,  0.5f, -0.5f},  {1.0f, 0.0f, 1.0f},  { 0.0f,  1.0f,  0.0f},  {0.0f, 1.0f}},
+        {{-0.5f,  0.5f,  0.5f},  {1.0f, 0.0f, 1.0f},  { 0.0f,  1.0f,  0.0f},  {0.0f, 1.0f}},
+        {{ 0.5f,  0.5f,  0.5f},  {1.0f, 0.0f, 1.0f},  { 0.0f,  1.0f,  0.0f},  {1.0f, 1.0f}},
+        {{ 0.5f,  0.5f, -0.5f},  {1.0f, 0.0f, 1.0f},  { 0.0f,  1.0f,  0.0f},  {1.0f, 0.0f}},
+        {{-0.5f,  0.5f, -0.5f},  {1.0f, 0.0f, 1.0f},  { 0.0f,  1.0f,  0.0f},  {0.0f, 0.0f}},
 
         // BOTTOM FACE (-Y) - Cyan
-        {{-0.5f, -0.5f, -0.5f},  {0.0f, 1.0f, 1.0f},  { 0.0f, -1.0f,  0.0f},  {0.0f, 0.0f}},
-        {{ 0.5f, -0.5f, -0.5f},  {0.0f, 1.0f, 1.0f},  { 0.0f, -1.0f,  0.0f},  {1.0f, 0.0f}},
-        {{ 0.5f, -0.5f,  0.5f},  {0.0f, 1.0f, 1.0f},  { 0.0f, -1.0f,  0.0f},  {1.0f, 1.0f}},
-        {{-0.5f, -0.5f,  0.5f},  {0.0f, 1.0f, 1.0f},  { 0.0f, -1.0f,  0.0f},  {0.0f, 1.0f}}
+        {{-0.5f, -0.5f, -0.5f},  {0.0f, 1.0f, 1.0f},  { 0.0f, -1.0f,  0.0f},  {0.0f, 1.0f}},
+        {{ 0.5f, -0.5f, -0.5f},  {0.0f, 1.0f, 1.0f},  { 0.0f, -1.0f,  0.0f},  {1.0f, 1.0f}},
+        {{ 0.5f, -0.5f,  0.5f},  {0.0f, 1.0f, 1.0f},  { 0.0f, -1.0f,  0.0f},  {1.0f, 0.0f}},
+        {{-0.5f, -0.5f,  0.5f},  {0.0f, 1.0f, 1.0f},  { 0.0f, -1.0f,  0.0f},  {0.0f, 0.0f}}
     };
 
     // 36 Indices (6 per face, forming 2 triangles each)
@@ -70,10 +70,17 @@ int main()
 
     renderer.init();
 
-    DirectionalLight l1 = renderer.create_directional_light(glm::vec3(0.0f, -1.0f, -1.0f), glm::vec3(0.6f, 0.2f, 0.2f), 0.4);
+    DirectionalLight l1 = renderer.create_directional_light(glm::vec3(0.0f, -1.0f, -1.0f), glm::vec3(0.8f, 0.8f, 0.8f), 0.4);
 
-    RenderObject cube = renderer.create_render_object_vertices(cube_vertices, cube_indices, 0);
+    renderer.create_material("test material", "textures/galaxy_brain.jpg");
+
+    renderer.create_material_descriptors();
+
+    RenderObject cube = renderer.create_render_object_vertices(cube_vertices, cube_indices, 1, "test material");
     RenderObject floor = renderer.create_render_object_vertices(floor_vertices, floor_indices, 0);
+
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 3.0f, 0.0f));
+    cube.model = model;
 
     renderer.directional_lights.push_back(l1);
     renderer.render_objects.push_back(cube);

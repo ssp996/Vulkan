@@ -173,14 +173,6 @@ void Renderer::main_pass(uint32_t current_frame, uint32_t image_index)
     depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 
-    /* VkRenderingAttachmentInfo stencil_attachment{};
-    stencil_attachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    stencil_attachment.imageView = depth_image_views[current_frame];          
-    stencil_attachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    stencil_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    stencil_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    stencil_attachment.clearValue.depthStencil = {1.0f, 0};          */  
-
     VkRenderingInfo main_pass_rendering_info{};
     main_pass_rendering_info.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
 
@@ -217,6 +209,12 @@ void Renderer::main_pass(uint32_t current_frame, uint32_t image_index)
     for (const auto& object: render_objects)
     {
         VkDeviceSize offsets = 0;
+
+        if (object.has_texture)
+        {
+            vkCmdBindDescriptorSets(main_command_buffers[current_frame], VK_PIPELINE_BIND_POINT_GRAPHICS, main_pipeline_layout, 1, 1, &object.material_descriptor_set, 0, nullptr);
+        }
+
         vkCmdBindVertexBuffers(main_command_buffers[current_frame], 0, 1, &object.mesh->vertex_buffer.buffer, &offsets);
         vkCmdBindIndexBuffer(main_command_buffers[current_frame], object.mesh->index_buffer.buffer, 0, VK_INDEX_TYPE_UINT16);
 
@@ -371,10 +369,12 @@ void Renderer::create_main_pipeline()
 
     std::vector<VkPushConstantRange> push_constant_ranges = {push_constant1};
 
+    VkDescriptorSetLayout set_layouts[] = {set_layout_infos.at(0).layout, set_layout_infos.at(1).layout};
+
     VkPipelineLayoutCreateInfo pipeline_layout_info{};
     pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipeline_layout_info.setLayoutCount = 1;
-    pipeline_layout_info.pSetLayouts = &set_layout_infos.at(0).layout;
+    pipeline_layout_info.setLayoutCount = 2;
+    pipeline_layout_info.pSetLayouts = set_layouts;
     pipeline_layout_info.pushConstantRangeCount = static_cast<uint32_t>(push_constant_ranges.size());
     pipeline_layout_info.pPushConstantRanges = push_constant_ranges.data();
 

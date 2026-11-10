@@ -49,7 +49,7 @@ glm::mat4 Camera::get_view_matrix()
 void Camera::capture(bool capture)
 {
     captured = capture;
-    last_mouse = glm::vec2(-1.0f);
+    have_last_mouse = false;
  
     uint32_t mode = capture ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL;
     glfwSetInputMode(window, GLFW_CURSOR, mode);
@@ -80,7 +80,7 @@ void Camera::update(GLFWwindow* w)
 
     float now = glfwGetTime();
 
-    float dt = (last_time < 0) ? 0.0 : min(now - last_time, 0.1);
+    float dt = (last_time < 0) ? 0.0 : min(now - last_time, 0.1f);
     last_time = now;
 
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS && captured)
@@ -99,14 +99,15 @@ void Camera::update(GLFWwindow* w)
 
         glm::vec2 curr_mouse_pos = glm::vec2(float(x), float(y));
 
-        if (last_mouse.x > 0 && last_mouse.y > 0)
+        if (have_last_mouse)
         {
             glm::vec2 dxdy = curr_mouse_pos - last_mouse;
             yaw += dxdy.x * sens;
-            pitch = glm::clamp<float>(pitch - dxdy.y * sens, -89.0, 89.0);
+            pitch = glm::clamp<float>(pitch - dxdy.y * sens, -89.0f, 89.0f);
         }
 
         last_mouse = curr_mouse_pos;
+        have_last_mouse = true;
     }
     glm::vec3 move = glm::vec3(0.0f);
     if (down(window, GLFW_KEY_W)) move += forward();

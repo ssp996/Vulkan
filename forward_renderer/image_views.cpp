@@ -1,4 +1,6 @@
 #include "image_views.hpp"
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 VkFormat find_supported_format(VkPhysicalDevice physical_device, const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) 
 {
@@ -128,4 +130,68 @@ void Renderer::allocate_depth_image_views()
         create_image(depth_images[i], depth_format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, swap_chain_extent);
         depth_image_views[i] = create_depth_image_view(depth_images[i], depth_format);
     }
+}
+
+void Renderer::load_texture(const std::string& filepath, AllocatedImage& out_image, VkImageView& out_view)
+{
+    int tex_width, tex_height, tex_channels;
+    stbi_uc* pixels = stbi_load(filepath.c_str(), &tex_width, &tex_height, &tex_channels, STBI_rgb_alpha);
+
+    VkDeviceSize image_size = tex_width * tex_height * 4;
+
+    if (!pixels)
+    {
+        throw std::runtime_error("failed to open texture image");
+    }
+
+    AllocatedBuffer pixels_staging_buffer = create_staging_buffer((void*)pixels, image_size);
+    stbi_image_free(pixels);
+
+    VkExtent2D extent = {static_cast<uint32_t>(tex_width), static_cast<uint32_t>(tex_height)};
+    create_image(out_image.image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, extent);
+
+    VkCommandBuffer temp_cmd;
+
+
+    begin_temp_command_buffer(temp_cmd);
+
+    transition_image(temp_cmd, out_image.image, VK_IMAGE_ASPECT_COLOR_BIT, 
+        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_ACCESS_2_NONE,
+        VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT);
+
+    copy_buffer_to_image(pixels_staging_buffer.buffer, out_image.image, static_cast<uint32_t>(tex_width), static_cast<uint32_t>(tex_height), temp_cmd);
+
+     transition_image(temp_cmd, out_image.image, VK_IMAGE_ASPECT_COLOR_BIT, 
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT,
+        VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT);
+
+    end_temp_command_buffer(temp_cmd);
+
+    vmaDestroyBuffer(allocator, pixels_staging_buffer.buffer, pixels_staging_buffer.allocation);
+
+    out_view = create_swap_chain_image_view(out_image.image, VK_FORMAT_R8G8B8A8_SRGB);
+}   
+
+void Renderer::create_texture_sampler()
+{
+    VkSamplerCreateInfo sampler_info{};
+    sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    sampler_info.magFilter = VK_FILTER_LINEAR;
+    sampler_info.minFilter = VK_FILTER_LINEAR;
+    sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    sampler_info.anisotropyEnable = VK_FALSE;
+    sampler_info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    sampler_info.unnormalizedCoordinates = VK_FALSE;
+    sampler_info.compareEnable = VK_FALSE;
+    sampler_info.compareOp = VK_COMPARE_OP_ALWAYS;
+    sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+
+    if (vkCreateSampler(device, &sampler_info, nullptr, &texture_sampler) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create texture sampler!");
+    }
+    resources.push_back(ResourceTypes::Samplers, texture_sampler);
 }

@@ -35,6 +35,8 @@ class Camera{
 
         bool captured = false;
 
+        bool have_last_mouse;
+
         glm::mat4 get_view_matrix();
 
         void update(GLFWwindow* w);

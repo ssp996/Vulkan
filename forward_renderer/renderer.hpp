@@ -90,20 +90,15 @@ class Renderer
         VkDescriptorPool descriptor_pool;
 
         std::vector<VkDescriptorSet> main_pass_descriptor_sets;
-        std::vector<VkDescriptorSet> vertex_shader_descriptor_set;
+        std::vector<VkDescriptorSet> texture_descriptor_set;
 
+        std::unordered_map<std::string, Material> material_map;
 
-        //spirv reflect
-        /* SpvReflectShaderModule module;
-        std::vector<SpvReflectDescriptorSet*> reflect_descriptor_sets;
-        std::vector<std::vector<VkDescriptorSetLayoutBinding>> all_bindings; 
-        std::vector<VkDescriptorSetLayout> descriptor_set_layouts;
-        std::vector<std::vector<VkDescriptorSet>> descriptor_sets;*/
+        VkSampler texture_sampler;
 
         std::vector<std::vector<char>> shader_codes;
 
         std::vector<SpvReflectShaderModule> reflect_shader_modules; 
-        std::map<uint32_t, SetLayoutInfo> set_layout_infos;
 
         std::vector<VkFence> in_flight_fences;
         std::vector<VkSemaphore> image_available_semaphores;
@@ -140,62 +135,26 @@ class Renderer
         void create_image(VkImage& image, VkFormat format, VkImageUsageFlags usage, VkExtent2D extent);
         void allocate_shadow_map_images_and_views();
         void allocate_depth_image_views();
+        void create_texture_sampler();
 
         //shader compilation
         std::vector<char> readFile(const std::string& filepath);
         VkShaderModule createShaderModule(const std::vector<char>& code, VkDevice device);
 
         //buffers
-        template <typename T>
-        void create_staging_buffer(const std::vector<T>& data, VkBufferUsageFlagBits buffer_usage, AllocatedBuffer& buffer)
-        {
-            size_t size = sizeof(T) * data.size();
-
-            VkBuffer staging_buffer;
-            VmaAllocation staging_allocation;
-            
-            VkBufferCreateInfo staging_info{};
-            staging_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-            staging_info.size = (VkDeviceSize)size;
-            staging_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT; 
-            
-            VmaAllocationCreateInfo staging_alloc_info{};
-            staging_alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
-            staging_alloc_info.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
-            
-            VmaAllocationInfo alloc_info;
-            vmaCreateBuffer(allocator, &staging_info, &staging_alloc_info, &staging_buffer, &staging_allocation, &alloc_info);
-        
-            memcpy(alloc_info.pMappedData, data.data(), size);
-
-            VkBufferCreateInfo gpu_info{};
-            gpu_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-            gpu_info.size = (VkDeviceSize)size;
-            gpu_info.usage = buffer_usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT; 
-            
-            VmaAllocationCreateInfo gpu_alloc_info{};
-            gpu_alloc_info.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE; 
-            
-            vmaCreateBuffer(allocator, &gpu_info, &gpu_alloc_info, &buffer.buffer, &buffer.allocation, nullptr);
-            copy_buffer(staging_buffer, buffer.buffer, size);
-            vmaDestroyBuffer(allocator, staging_buffer, staging_allocation);
-
-            resources.push_back(ResourceTypes::AllocatedBuffer, buffer);
-        }
-
+        AllocatedBuffer create_staging_buffer(void* data, size_t size);
         void copy_buffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size);
+        void copy_buffer_to_image(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, VkCommandBuffer cmd_buf);
         void create_and_map_descriptor_buffer(size_t size,  uint32_t n_elements, VkBufferUsageFlags buffer_usage, AllocatedBuffer& buffer);
         void create_and_map_vertex_buffer(const std::vector<Vertex>& vertices, std::vector<uint16_t> indices, Mesh& mesh);
         void create_staging_vertex_buffer(const std::vector<Vertex>& vertices, const std::vector<uint16_t>& indices, Mesh& mesh);
         void create_directional_light_buffer_objects(uint32_t n);
         //descriptors
         void create_descriptor_pool();
-        void allocate_descriptor_set(VkDescriptorSetLayout layout, std::vector<VkDescriptorSet>& descriptor_sets, uint32_t n);
         /* void create_descriptor_sets(std::vector<uint32_t> set_sizes); */
         void create_descriptor_set(VkDescriptorSet& descriptor_set, const SetLayoutInfo& set_layout_info, const std::vector<BindingData>& binding_data);
         VkDescriptorBufferInfo make_buffer_info(const AllocatedBuffer& allocated_buffer, uint32_t frame);
         VkDescriptorImageInfo make_image_info(const VkImageView& image_view, VkSampler sampler, VkImageLayout image_layout);
-
         void write_set(VkDescriptorSet set, const SetLayoutInfo& set_layout_info, const std::vector<BindingData>& binding_data);
 
         std::map<uint32_t, SetLayoutInfo> build_set_layouts();
@@ -223,6 +182,9 @@ class Renderer
         void create_semaphore_set(uint32_t n, std::vector<VkSemaphore>& semaphores);
         void create_fence_set(uint32_t n, std::vector<VkFence>& fences, VkFenceCreateFlagBits create_flags);
 
+        void begin_temp_command_buffer(VkCommandBuffer& command_buffer);
+        void end_temp_command_buffer(VkCommandBuffer& command_buffer);
+
     public:
         Renderer();
 
@@ -247,6 +209,8 @@ class Renderer
         std::vector<RenderObject> render_objects;
         std::vector<DirectionalLight> directional_lights;
 
+        std::map<uint32_t, SetLayoutInfo> set_layout_infos;
+
         GLFWwindow* window;
 
         void init();
@@ -257,9 +221,16 @@ class Renderer
 
         DirectionalLight create_directional_light(glm::vec3 direction, glm::vec3 color, float intensity);
         RenderObject create_render_object(std::vector<glm::vec3>& positions, std::vector<glm::vec3>& colors, std::vector<glm::vec3>& normals, std::vector<glm::vec2>& uvs, std::vector<uint16_t>& indices, uint32_t has_texture);
-        RenderObject create_render_object_vertices(std::vector<Vertex>& vertices, std::vector<uint16_t>& indices, uint32_t has_texture);
+        RenderObject create_render_object_vertices(std::vector<Vertex>& vertices, std::vector<uint16_t>& indices, uint32_t has_texture, const std::string& material_name="");
+
+        void load_texture(const std::string& filepath, AllocatedImage& out_image, VkImageView& out_view);
 
         void create_main_pass_descriptors(); //temporarily here
+
+        void create_material(const std::string& name, const std::string& filepath);
+        void create_material_descriptors();
+
+        void allocate_descriptor_set(VkDescriptorSetLayout layout, std::vector<VkDescriptorSet>& descriptor_sets, uint32_t n);
 
         void cleanup();
 
