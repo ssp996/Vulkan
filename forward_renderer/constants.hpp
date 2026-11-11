@@ -3,5 +3,6 @@
 
 constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 3;
 constexpr uint32_t MAX_DIRECTIONAL_LIGHTS = 4;
+constexpr uint32_t MAX_POINT_LIGHTS = 4;
 
 constexpr uint32_t MAX_DESCRIPTOR_SETS = 1000;

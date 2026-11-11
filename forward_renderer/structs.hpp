@@ -130,10 +130,66 @@ struct DirectionalLight{
     }
 };
 
+struct Plight{
+    alignas(16) glm::vec3 position;
+    alignas(16) glm::vec3 color;
+    float intensity;
+    float far_plane;
+};  
+
+struct PointLight{
+    glm::vec3 position;
+    glm::vec3 color;
+    float intensity;
+    std::vector<glm::mat4> light_space_matrices;
+    float far_plane;
+
+    std::vector<VkImageView> depth_image_views;
+    std::vector<VkImage> depth_images;
+
+    Plight to_gpu()
+    {
+        Plight p;
+        p.position = position;
+        p.color = color;
+        p.intensity = intensity;
+
+        p.far_plane = far_plane;
+
+        return p;
+    }
+
+    std::vector<glm::mat4> get_matrices()
+    {
+        if (light_space_matrices.size() != 6) throw std::runtime_error("wrong number of light space matrices");
+
+        return light_space_matrices;
+    }
+    
+};
+
+struct LightBufferObject{
+    uint32_t active_lights; 
+    alignas(16) DirLight dir_lights[MAX_DIRECTIONAL_LIGHTS];
+};
+
+struct PointLightBufferObject{
+    uint32_t active_lights;
+    alignas(16) Plight point_lights[MAX_POINT_LIGHTS];
+};  
+
+struct CameraUBO{
+    alignas(16) glm::vec3 camera_pos;
+    alignas(16) glm::mat4 viewproj;
+};
 
 struct DirectionalLightPushConstant{
     alignas(16) glm::mat4 model;
     alignas(16) glm::mat4 light_space_matrix;
+};
+
+struct PointLightPushConstant{
+    alignas(16) glm::mat4 model;
 };
 
 struct Mat4IntPc{
@@ -190,19 +246,6 @@ struct BindingData {
     std::string name;
     std::vector<VkDescriptorBufferInfo> buffers;   
     std::vector<VkDescriptorImageInfo>  images;    
-};
-
-
-
-struct LightBufferObject{
-    alignas(16) glm::vec3 camera_pos;
-    uint32_t active_lights; 
-    alignas(16) DirLight dir_lights[MAX_DIRECTIONAL_LIGHTS];
-};
-
-struct CameraUBO{
-    alignas(16) glm::vec3 camera_pos;
-    alignas(16) glm::mat4 viewproj;
 };
 
 using free_function = std::function<void(std::shared_ptr<void>, VkInstance, VkDevice, VmaAllocator)>;

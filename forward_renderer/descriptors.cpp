@@ -154,37 +154,6 @@ void Renderer::allocate_descriptor_set(VkDescriptorSetLayout layout, std::vector
     }
 }
 
-/* void Renderer::create_descriptor_sets(std::vector<uint32_t> set_sizes) //same number of sizes as number of descriptor sets
-{
-    descriptor_sets.resize(reflect_descriptor_sets.size());
-
-    for (int i = 0; i < reflect_descriptor_sets.size(); i++)
-    {
-        std::vector<VkDescriptorSetLayoutBinding> curr_binding = all_bindings[i];
-        std::vector<VkDescriptorSet> curr_set = descriptor_sets[i];
-        std::vector<VkWriteDescriptorSet> writes;
-
-        allocate_descriptor_set(descriptor_set_layouts[i], curr_set, set_sizes[i]);
-
-        for (int j = 0; j < curr_binding.size(); j++)
-        {
-            for (int k = 0; k < set_sizes[i]; k++)
-            {
-                 VkWriteDescriptorSet write{};
-                write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-                write.dstSet = curr_set[k];
-                write.dstBinding = curr_binding[j].binding;
-                write.dstArrayElement = 0;
-                write.descriptorCount = curr_binding[j].descriptorCount;
-
-                write.descriptorType = static_cast<VkDescriptorType>(curr_binding[j].descriptorType);
-
-                
-            }
-        }
-    }
-} */
-
 std::map<uint32_t, SetLayoutInfo> Renderer::build_set_layouts()
 {
     std::map<uint32_t, SetLayoutInfo> out;

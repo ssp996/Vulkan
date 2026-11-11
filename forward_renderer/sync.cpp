@@ -130,8 +130,8 @@ void Renderer::draw_frame(uint32_t current_frame)
             VK_IMAGE_ASPECT_DEPTH_BIT,
             VK_IMAGE_LAYOUT_UNDEFINED,
             VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
-            VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, // Added _2
-            VK_ACCESS_2_NONE,                    // Replaced 0
+            VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, 
+            VK_ACCESS_2_NONE,                   
             VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
             VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
         );

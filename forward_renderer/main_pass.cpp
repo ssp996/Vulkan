@@ -119,7 +119,6 @@ void Renderer::update_dir_lights_ubo(uint32_t current_frame)
 {
     LightBufferObject ubo{};
     ubo.active_lights = static_cast<int>(directional_lights.size());
-    ubo.camera_pos = camera_pos;
     for (size_t i = 0; i < directional_lights.size(); ++i)
     {
         ubo.dir_lights[i] = directional_lights[i].to_gpu();

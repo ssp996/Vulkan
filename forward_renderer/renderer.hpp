@@ -75,11 +75,16 @@ class Renderer
         VkPipelineLayout directional_shadow_pipeline_layout;
         VkPipeline directional_shadow_pipeline;
 
+        VkPipelineLayout point_shadow_pipeline_layout;
+        VkPipeline point_shadow_pipeline;
+
+        VkExtent2D cubemap_face_extent = {1024, 1024};
+
         VkSampler shadow_sampler;
-        VkDescriptorSet directional_shadow_map_descriptor_set;
 
         AllocatedBuffer dir_lights_buffer;
         AllocatedBuffer camera_ubo_buffer;
+        std::vector<AllocatedBuffer> point_light_matrices_buffers;
 
         VkPipelineLayout main_pipeline_layout;
         VkPipeline main_pipeline;
@@ -91,6 +96,7 @@ class Renderer
 
         std::vector<VkDescriptorSet> main_pass_descriptor_sets;
         std::vector<VkDescriptorSet> texture_descriptor_set;
+        std::vector<std::vector<VkDescriptorSet>> point_light_matrices_descriptor_sets;
 
         std::unordered_map<std::string, Material> material_map;
 
@@ -103,8 +109,6 @@ class Renderer
         std::vector<VkFence> in_flight_fences;
         std::vector<VkSemaphore> image_available_semaphores;
         std::vector<VkSemaphore> render_finished_semaphores;
-        
-        std::vector<LightBufferObject> lbos;
 
         float time;
 
@@ -132,8 +136,11 @@ class Renderer
         //image views and images
         VkImageView create_swap_chain_image_view(VkImage image, VkFormat format);
         VkImageView create_depth_image_view(VkImage image, VkFormat format);
+        VkImageView create_cubemap_views(VkImage image);
         void create_image(VkImage& image, VkFormat format, VkImageUsageFlags usage, VkExtent2D extent);
+        void create_cubemap(VkImage& image);
         void allocate_shadow_map_images_and_views();
+        void allocate_cubemap_images_and_views();
         void allocate_depth_image_views();
         void create_texture_sampler();
 
@@ -164,8 +171,9 @@ class Renderer
         void directional_shadow_pass(uint32_t current_frame);
         void create_shadow_pipeline();
         void create_shadow_sampler();
-        /* void create_shadow_maps(uint32_t current_frame);
-        void create_directional_shadow_map_descriptor_layout(); */
+        void update_point_light_matrices_buffer(uint32_t current_frame, AllocatedBuffer& point_light_matrices_buffer);
+        void point_shadow_pass(uint32_t current_frame);
+        void create_point_shadow_pipeline();
         
         //main pass
         void fallback_fix();
@@ -192,6 +200,7 @@ class Renderer
         const uint32_t height = 800;
 
         const std::string directional_shadow_vertex_shader_filepath = "shaders/directional_shadow.spv";
+        const std::string point_shadow_vertex_shader_filepath = "shaders/point_shadow.spv";
 
         const std::string main_vertex_shader_filepath = "shaders/main_vertex.spv";
         const std::string main_fragment_shader_filepath = "shaders/main_fragment.spv";
@@ -209,7 +218,10 @@ class Renderer
         std::vector<RenderObject> render_objects;
         std::vector<DirectionalLight> directional_lights;
 
+        std::vector<PointLight> point_lights;
+
         std::map<uint32_t, SetLayoutInfo> set_layout_infos;
+        std::map<uint32_t, SetLayoutInfo> point_shadow_pipeline_set_layout_infos;
 
         GLFWwindow* window;
 
@@ -226,6 +238,7 @@ class Renderer
         void load_texture(const std::string& filepath, AllocatedImage& out_image, VkImageView& out_view);
 
         void create_main_pass_descriptors(); //temporarily here
+        void create_point_light_matrices_descriptor_sets();
 
         void create_material(const std::string& name, const std::string& filepath);
         void create_material_descriptors();

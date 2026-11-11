@@ -15,7 +15,6 @@ struct DirLight {
 };
 
 layout(set = 0, binding = 0) uniform LightUBO{
-    vec3 camera_pos;
     uint active_lights;
     DirLight lights[MAX_DIR_LIGHTS];
 }lbo;
