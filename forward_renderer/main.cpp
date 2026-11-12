@@ -71,6 +71,7 @@ int main()
     renderer.init();
 
     DirectionalLight l1 = renderer.create_directional_light(glm::vec3(0.0f, -1.0f, -1.0f), glm::vec3(0.8f, 0.8f, 0.8f), 0.4);
+    PointLight p1 = renderer.create_point_light(glm::vec3(0.0f, 4.5f, -2.0f), glm::vec3(0.8f, 0.8f, 0.8f), 5, 30.0f);
 
     renderer.create_material("test material", "textures/galaxy_brain.jpg");
 
@@ -80,15 +81,18 @@ int main()
     RenderObject floor = renderer.create_render_object_vertices(floor_vertices, floor_indices, 0);
 
     glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 3.0f, 0.0f));
+    
     cube.model = model;
 
     renderer.directional_lights.push_back(l1);
+    renderer.point_lights.push_back(p1);
     renderer.render_objects.push_back(cube);
     renderer.render_objects.push_back(floor);
 
     renderer.camera = Camera();
 
     renderer.create_main_pass_descriptors();
+    renderer.create_point_light_matrices_descriptor_sets();
 
     uint32_t current_frame = 0;
 

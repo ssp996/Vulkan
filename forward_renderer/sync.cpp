@@ -47,7 +47,7 @@ void Renderer::transition_image(VkCommandBuffer cmd, VkImage image, VkImageAspec
     barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.image = image;
-    barrier.subresourceRange = { aspect, 0, 1, 0, 1 };
+    barrier.subresourceRange = { aspect, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS };
 
     VkDependencyInfo dep_info{};
     dep_info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
@@ -137,7 +137,24 @@ void Renderer::draw_frame(uint32_t current_frame)
         );
     }
 
+    for (auto& light: point_lights)
+    {
+        transition_image(
+            main_command_buffers[current_frame],
+            light.depth_images[current_frame],
+            VK_IMAGE_ASPECT_DEPTH_BIT,
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+            VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, 
+            VK_ACCESS_2_NONE,                   
+            VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+            VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+        );
+    }
+
     directional_shadow_pass(current_frame);
+
+    point_shadow_pass(current_frame);
 
     //transtion each light's depth image from depth attachment -> shader read only (to be sampled in main pass)
     for (auto& light: directional_lights)
@@ -155,6 +172,20 @@ void Renderer::draw_frame(uint32_t current_frame)
         );
     }
 
+    for (auto& light: point_lights)
+    {
+        transition_image(
+            main_command_buffers[current_frame],
+            light.depth_images[current_frame],
+            VK_IMAGE_ASPECT_DEPTH_BIT,
+            VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT, 
+            VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+            VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+            VK_ACCESS_2_SHADER_READ_BIT
+        );
+    }
     //transition depth images from undefined -> depth attachment
     transition_image(
         main_command_buffers[current_frame],

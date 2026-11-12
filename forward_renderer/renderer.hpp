@@ -85,6 +85,7 @@ class Renderer
         AllocatedBuffer dir_lights_buffer;
         AllocatedBuffer camera_ubo_buffer;
         std::vector<AllocatedBuffer> point_light_matrices_buffers;
+        AllocatedBuffer point_lights_buffer;
 
         VkPipelineLayout main_pipeline_layout;
         VkPipeline main_pipeline;
@@ -103,8 +104,10 @@ class Renderer
         VkSampler texture_sampler;
 
         std::vector<std::vector<char>> shader_codes;
+        std::vector<std::vector<char>> point_light_shader_codes;
 
-        std::vector<SpvReflectShaderModule> reflect_shader_modules; 
+        std::vector<SpvReflectShaderModule> reflect_shader_modules;
+        std::vector<SpvReflectShaderModule> point_light_reflect_shader_modules; 
 
         std::vector<VkFence> in_flight_fences;
         std::vector<VkSemaphore> image_available_semaphores;
@@ -138,7 +141,7 @@ class Renderer
         VkImageView create_depth_image_view(VkImage image, VkFormat format);
         VkImageView create_cubemap_views(VkImage image);
         void create_image(VkImage& image, VkFormat format, VkImageUsageFlags usage, VkExtent2D extent);
-        void create_cubemap(VkImage& image);
+        void create_cubemap(VkImage& image, VkExtent2D face_extent);
         void allocate_shadow_map_images_and_views();
         void allocate_cubemap_images_and_views();
         void allocate_depth_image_views();
@@ -164,14 +167,14 @@ class Renderer
         VkDescriptorImageInfo make_image_info(const VkImageView& image_view, VkSampler sampler, VkImageLayout image_layout);
         void write_set(VkDescriptorSet set, const SetLayoutInfo& set_layout_info, const std::vector<BindingData>& binding_data);
 
-        std::map<uint32_t, SetLayoutInfo> build_set_layouts();
+        std::map<uint32_t, SetLayoutInfo> build_set_layouts(std::vector<SpvReflectShaderModule>& reflect_shader_modules);
 
 
         //shadow pass
         void directional_shadow_pass(uint32_t current_frame);
         void create_shadow_pipeline();
         void create_shadow_sampler();
-        void update_point_light_matrices_buffer(uint32_t current_frame, AllocatedBuffer& point_light_matrices_buffer);
+        void update_point_light_matrices_buffer(uint32_t current_frame, uint32_t light_index, AllocatedBuffer& point_light_matrices_buffer);
         void point_shadow_pass(uint32_t current_frame);
         void create_point_shadow_pipeline();
         
@@ -182,6 +185,7 @@ class Renderer
         void create_main_pipeline();
         void update_dir_lights_ubo(uint32_t current_frame);
         void update_camera_ubo(uint32_t current_frame);
+        void update_point_lights_buffer(uint32_t current_frame);
 
         //sync
         void create_command_pool();
@@ -232,6 +236,7 @@ class Renderer
         void draw_frame(uint32_t current_frame);
 
         DirectionalLight create_directional_light(glm::vec3 direction, glm::vec3 color, float intensity);
+        PointLight create_point_light(glm::vec3 position, glm::vec3 color, float intensity, float far_plane);
         RenderObject create_render_object(std::vector<glm::vec3>& positions, std::vector<glm::vec3>& colors, std::vector<glm::vec3>& normals, std::vector<glm::vec2>& uvs, std::vector<uint16_t>& indices, uint32_t has_texture);
         RenderObject create_render_object_vertices(std::vector<Vertex>& vertices, std::vector<uint16_t>& indices, uint32_t has_texture, const std::string& material_name="");
 

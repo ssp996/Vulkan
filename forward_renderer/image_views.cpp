@@ -106,7 +106,7 @@ void Renderer::create_image(VkImage& image, VkFormat format, VkImageUsageFlags u
     resources.push_back(ResourceTypes::AllocatedImages, allocated_image);
 }
 
-void Renderer::create_cubemap(VkImage& image)
+void Renderer::create_cubemap(VkImage& image, VkExtent2D face_extent)
 {
     VkImageCreateInfo image_info{};
     image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -178,7 +178,7 @@ void Renderer::allocate_cubemap_images_and_views()
     {
         for (int i = 0; i < swap_chain_images.size(); i++)
         {
-            create_cubemap(light.depth_images[i]);      
+            create_cubemap(light.depth_images[i], cubemap_face_extent);      
             light.depth_image_views[i] = create_cubemap_views(light.depth_images[i]);
         }
     }

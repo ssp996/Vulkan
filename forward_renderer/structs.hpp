@@ -237,7 +237,6 @@ struct SetLayoutInfo{
     const VkDescriptorSetLayoutBinding& get_set_layout_binding(const std::string& name)
     const {
         uint32_t index = names.at(name);
-
         return *std::find_if(bindings.begin(), bindings.end(), [&](auto& b){return b.binding == index;});
     }
 };

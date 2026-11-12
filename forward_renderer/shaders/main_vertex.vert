@@ -10,7 +10,7 @@ layout(location = 1) out vec3 outColor;
 layout(location = 2) out vec3 outNormal;
 layout(location = 3) out vec2 outUv;
 
-layout(set = 0, binding = 2) uniform CameraUBO{
+layout(set = 0, binding = 4) uniform CameraUBO{
     vec3 camera_pos;
     mat4 viewproj;
 }cbo;

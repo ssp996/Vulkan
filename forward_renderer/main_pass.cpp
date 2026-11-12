@@ -2,28 +2,20 @@
 
 void Renderer::fallback_fix()
 {
-    fallback_image.resize(1);
-    fallback_image_view.resize(1);
+    fallback_image.resize(2);
+    fallback_image_view.resize(2);
 
     VkExtent2D lfallback_extent = {1, 1};
 
     create_image(fallback_image[0], VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, lfallback_extent);
     fallback_image_view[0] = create_depth_image_view(fallback_image[0], VK_FORMAT_D32_SFLOAT);
 
+    create_cubemap(fallback_image[1], lfallback_extent);
+    fallback_image_view[1] = create_cubemap_views(fallback_image[1]);
+
     //transitioning the fallback image to SHADER_READ_ONLY_OPTIMAL immediately
-    VkCommandBufferAllocateInfo alloc_info{};
-    alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    alloc_info.commandPool = command_pool;
-    alloc_info.commandBufferCount = 1;
-
     VkCommandBuffer temp_cmd;
-    vkAllocateCommandBuffers(device, &alloc_info, &temp_cmd);
-
-    VkCommandBufferBeginInfo begin_info{};
-    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    vkBeginCommandBuffer(temp_cmd, &begin_info);
+    begin_temp_command_buffer(temp_cmd);
 
     transition_image(
         temp_cmd,
@@ -37,47 +29,49 @@ void Renderer::fallback_fix()
         VK_ACCESS_2_SHADER_READ_BIT
     );
 
-    vkEndCommandBuffer(temp_cmd);
+    transition_image(
+        temp_cmd,
+        fallback_image[1],
+        VK_IMAGE_ASPECT_DEPTH_BIT,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+        VK_ACCESS_2_NONE,
+        VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+        VK_ACCESS_2_SHADER_READ_BIT
+    );
 
-    VkCommandBufferSubmitInfo cmd_submit{};
-    cmd_submit.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
-    cmd_submit.commandBuffer = temp_cmd;
-
-    VkSubmitInfo2 submit{};
-    submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
-    submit.commandBufferInfoCount = 1;
-    submit.pCommandBufferInfos = &cmd_submit;
-
-    vkQueueSubmit2(graphics_queue, 1, &submit, VK_NULL_HANDLE);
-    vkQueueWaitIdle(graphics_queue);
-
-    vkFreeCommandBuffers(device, command_pool, 1, &temp_cmd);
+    end_temp_command_buffer(temp_cmd);
 }
 
 
 void Renderer::create_main_pass_descriptors()
 {
+    std::cout << "main pass layout" << std::endl;
     const SetLayoutInfo& set_info = set_layout_infos.at(0);
 
     allocate_descriptor_set(set_info.layout, main_pass_descriptor_sets, static_cast<uint32_t>(swap_chain_images.size()));
 
     allocate_shadow_map_images_and_views();
+    allocate_cubemap_images_and_views();
 
     fallback_fix();
 
     create_and_map_descriptor_buffer(sizeof(LightBufferObject), swap_chain_images.size(), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, dir_lights_buffer);
     create_and_map_descriptor_buffer(sizeof(CameraUBO), swap_chain_images.size(), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, camera_ubo_buffer);
+    create_and_map_descriptor_buffer(sizeof(PointLightBufferObject), swap_chain_images.size(), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, point_lights_buffer);
+
     for (uint32_t i = 0; i < swap_chain_images.size(); i++)
     {
         update_dir_lights_ubo(i);
         update_camera_ubo(i);
+        update_point_lights_buffer(i);
     }
-
-    
 
     for (int frame = 0; frame < swap_chain_images.size(); frame++)
     {
         std::vector<VkDescriptorImageInfo> frame_image_infos;
+        std::vector<VkDescriptorImageInfo> point_light_frame_image_infos;
         
         for (int i = 0; i < MAX_DIRECTIONAL_LIGHTS; i++)
         {
@@ -93,23 +87,45 @@ void Renderer::create_main_pass_descriptors()
             }
         }
 
+        for (int i = 0; i < MAX_POINT_LIGHTS; i++)
+        {
+            if (i < point_lights.size())
+            {
+                assert(point_lights[i].depth_image_views[frame] != VK_NULL_HANDLE && "active point light has a null image view");
+                point_light_frame_image_infos.push_back(make_image_info(point_lights[i].depth_image_views[frame], shadow_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+            }
+            else 
+            {
+                point_light_frame_image_infos.push_back(make_image_info(fallback_image_view[1], shadow_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)); 
+            }
+        }
+
         BindingData sampler_bd{};
         sampler_bd.name = "shadow_maps";
         sampler_bd.buffers = {};
         sampler_bd.images = frame_image_infos;
 
+        BindingData point_sampler_bd{};
+        point_sampler_bd.name = "point_light_shadow_maps";
+        point_sampler_bd.buffers = {};
+        point_sampler_bd.images = point_light_frame_image_infos;
+
         BindingData light_buffer_object_bd{};
         light_buffer_object_bd.name = "lbo";
         light_buffer_object_bd.images = {};
-        std::cout << "elem size: " << dir_lights_buffer.elem_size << " | " << "padded size: " << dir_lights_buffer.padded_size <<  std::endl;
         light_buffer_object_bd.buffers = {make_buffer_info(dir_lights_buffer, frame)};
+
+        BindingData point_light_buffer_object_bd{};
+        point_light_buffer_object_bd.name = "pbo";
+        point_light_buffer_object_bd.images = {};
+        point_light_buffer_object_bd.buffers = {make_buffer_info(point_lights_buffer, frame)};
 
         BindingData camera_ubo_bd{};
         camera_ubo_bd.name = "cbo";
         camera_ubo_bd.images = {};
         camera_ubo_bd.buffers = {make_buffer_info(camera_ubo_buffer, frame)};
 
-        std::vector<BindingData> binding_data = {sampler_bd, light_buffer_object_bd, camera_ubo_bd};
+        std::vector<BindingData> binding_data = {sampler_bd, point_sampler_bd, light_buffer_object_bd, point_light_buffer_object_bd, camera_ubo_bd};
 
         write_set(main_pass_descriptor_sets[frame], set_info, binding_data);
     }
@@ -144,6 +160,24 @@ void Renderer::update_camera_ubo(uint32_t current_frame)
 
     memcpy(dst, &ubo, sizeof(CameraUBO));
     vmaFlushAllocation(allocator, camera_ubo_buffer.allocation, offset, camera_ubo_buffer.padded_size);
+}
+
+void Renderer::update_point_lights_buffer(uint32_t current_frame)
+{
+    PointLightBufferObject ubo{};
+    ubo.active_lights = static_cast<int>(point_lights.size());
+    for (int i = 0; i < point_lights.size(); i++)
+    {
+        ubo.point_lights[i] = point_lights[i].to_gpu();
+    }
+
+    VkDeviceSize offset = current_frame * point_lights_buffer.padded_size;
+    std::byte* dst = static_cast<std::byte*>(point_lights_buffer.mapped) + offset;
+
+    assert(point_lights_buffer.mapped != nullptr && "VMA memory was never mapped for point lights buffer");
+
+    memcpy(dst, &ubo, sizeof(PointLightBufferObject));
+    vmaFlushAllocation(allocator, point_lights_buffer.allocation, offset, point_lights_buffer.padded_size);
 }
 
 void Renderer::main_pass(uint32_t current_frame, uint32_t image_index)
@@ -368,6 +402,7 @@ void Renderer::create_main_pipeline()
 
     std::vector<VkPushConstantRange> push_constant_ranges = {push_constant1};
 
+    std::cout << "assigning set layouts to main pipeline" << std::endl;
     VkDescriptorSetLayout set_layouts[] = {set_layout_infos.at(0).layout, set_layout_infos.at(1).layout};
 
     VkPipelineLayoutCreateInfo pipeline_layout_info{};

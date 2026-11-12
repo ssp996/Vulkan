@@ -132,6 +132,32 @@ DirectionalLight Renderer::create_directional_light(glm::vec3 direction, glm::ve
     return d;
 }
 
+PointLight Renderer::create_point_light(glm::vec3 position, glm::vec3 color, float intensity, float far_plane)
+{
+    const glm::vec3 dirs[6] = { { 1,0,0}, {-1,0,0}, {0, 1,0}, {0,-1,0}, {0,0, 1}, {0,0,-1} };
+    const glm::vec3 ups[6]  = { {0,-1,0}, {0,-1,0}, {0,0, 1}, {0,0,-1}, {0,-1,0}, {0,-1,0} };
+
+    PointLight p{};
+
+    p.position = position;
+    p.far_plane = far_plane;
+    p.color = color;
+    p.intensity = intensity;
+
+    float near_plane = 0.1f;
+    glm::mat4 proj = glm::perspective(glm::radians(90.0f), 1.0f, near_plane, far_plane);
+    p.light_space_matrices.resize(6);
+    for (int f = 0; f < 6; f++)
+    {
+        p.light_space_matrices[f] = proj * glm::lookAt(position, position + dirs[f], ups[f]);
+    }
+
+    p.depth_image_views.resize(swap_chain_images.size());
+    p.depth_images.resize(swap_chain_images.size());
+
+    return p;
+}
+
 void Renderer::init()
 {
     if (!glfwInit())
@@ -163,14 +189,25 @@ void Renderer::init()
     shader_codes.push_back(readFile(main_vertex_shader_filepath));
     shader_codes.push_back(readFile(main_fragment_shader_filepath));
 
-    reflect_shader_modules.resize(shader_codes.size());
+    reflect_shader_modules.resize(shader_codes.size());    
 
     for (int i = 0; i < shader_codes.size(); i++)
     {
         load_reflect_module(shader_codes[i], reflect_shader_modules[i]);
     }
 
-    set_layout_infos = build_set_layouts();
+
+    point_light_shader_codes.push_back(readFile(point_shadow_vertex_shader_filepath));
+    point_light_reflect_shader_modules.resize(point_light_shader_codes.size());
+
+    for (int i = 0; i < point_light_shader_codes.size(); i++)
+    {
+        load_reflect_module(point_light_shader_codes[i], point_light_reflect_shader_modules[i]);
+    }
+
+
+    set_layout_infos = build_set_layouts(reflect_shader_modules);
+    point_shadow_pipeline_set_layout_infos = build_set_layouts(point_light_reflect_shader_modules);
 
     create_shadow_sampler();
     create_texture_sampler();
@@ -182,6 +219,7 @@ void Renderer::init()
     }
 
     create_shadow_pipeline();
+    create_point_shadow_pipeline();
     create_main_pipeline();
 
     create_command_pool();
@@ -206,6 +244,7 @@ void Renderer::cleanup()
 
         if (free_functions.find(type) != free_functions.end())
         {
+            std::cout << "free functions" << std::endl;
             free_functions.at(type)(ptr, instance, device, allocator);
         }
     }
@@ -273,7 +312,8 @@ void Renderer::create_material(const std::string& name, const std::string& filep
 }
 
 void Renderer::create_material_descriptors()
-{
+{   
+    std::cout << "creating material descriptors" << std::endl;
     allocate_descriptor_set(set_layout_infos.at(1).layout, texture_descriptor_set, static_cast<uint32_t>(material_map.size()));
 
     int i = 0;

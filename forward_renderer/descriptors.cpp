@@ -154,7 +154,7 @@ void Renderer::allocate_descriptor_set(VkDescriptorSetLayout layout, std::vector
     }
 }
 
-std::map<uint32_t, SetLayoutInfo> Renderer::build_set_layouts()
+std::map<uint32_t, SetLayoutInfo> Renderer::build_set_layouts(std::vector<SpvReflectShaderModule>& reflect_shader_modules)
 {
     std::map<uint32_t, SetLayoutInfo> out;
 

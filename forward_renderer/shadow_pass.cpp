@@ -218,9 +218,11 @@ void Renderer::create_shadow_sampler()
 }
 
 void Renderer::create_point_light_matrices_descriptor_sets()
-{
+{   
+    std::cout << "accessing pointlight layout" << std::endl;
     const SetLayoutInfo& set_layout_info = point_shadow_pipeline_set_layout_infos.at(0);
     point_light_matrices_descriptor_sets.resize(point_lights.size());
+    point_light_matrices_buffers.resize(point_lights.size());
 
     for (int i = 0; i < point_lights.size(); i++)
     {
@@ -230,7 +232,7 @@ void Renderer::create_point_light_matrices_descriptor_sets()
 
         for (int j = 0; j < swap_chain_images.size(); j++)
         {
-            update_point_light_matrices_buffer(j, point_light_matrices_buffers[i]);
+            update_point_light_matrices_buffer(j, i, point_light_matrices_buffers[i]);
         }
 
         for (int frame = 0; frame < swap_chain_images.size(); frame++)
@@ -246,20 +248,17 @@ void Renderer::create_point_light_matrices_descriptor_sets()
     }     
 }
 
-void Renderer::update_point_light_matrices_buffer(uint32_t current_frame, AllocatedBuffer& point_light_matrices_buffer)
+void Renderer::update_point_light_matrices_buffer(uint32_t current_frame, uint32_t light_index, AllocatedBuffer& point_light_matrices_buffer)
 {
-    for (auto light: point_lights)
-    {
-        std::vector<glm::mat4> light_matrices = light.get_matrices();
+    std::vector<glm::mat4> light_matrices = point_lights[light_index].get_matrices();
 
-        VkDeviceSize offset = current_frame * point_light_matrices_buffer.padded_size;
-        std::byte* dst = static_cast<std::byte*>(point_light_matrices_buffer.mapped) + offset;
+    VkDeviceSize offset = current_frame * point_light_matrices_buffer.padded_size;
+    std::byte* dst = static_cast<std::byte*>(point_light_matrices_buffer.mapped) + offset;
 
-        assert(point_light_matrices_buffer.mapped != nullptr && "VMA memory was never mapped for point light matrices buffer");
+    assert(point_light_matrices_buffer.mapped != nullptr && "VMA memory was never mapped for point light matrices buffer");
 
-        memcpy(dst, light_matrices.data(), 6 * sizeof(glm::mat4));
-        vmaFlushAllocation(allocator, point_light_matrices_buffer.allocation, offset, point_light_matrices_buffer.padded_size);
-    }   
+    memcpy(dst, light_matrices.data(), 6 * sizeof(glm::mat4));
+    vmaFlushAllocation(allocator, point_light_matrices_buffer.allocation, offset, point_light_matrices_buffer.padded_size);
 }
 
 void Renderer::point_shadow_pass(uint32_t current_frame)
@@ -367,6 +366,7 @@ void Renderer::create_point_shadow_pipeline()
     VkPipelineLayoutCreateInfo pipeline_layout_info{};
     pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipeline_layout_info.setLayoutCount = 1;
+    std::cout << "assigning point light layout to pipeline" << std::endl;
     pipeline_layout_info.pSetLayouts = &point_shadow_pipeline_set_layout_infos.at(0).layout;
     pipeline_layout_info.pushConstantRangeCount = 1;
     pipeline_layout_info.pPushConstantRanges = &push_constant;
